@@ -11,9 +11,9 @@
   --bg:#f0f2f5;
   --white:#ffffff;
   --border:#dde1e7;
-  --acc:#1877f2;
-  --acc-dark:#166fe5;
-  --acc-bg:#e7f0fd;
+  --acc:#ff6b35;
+  --acc-dark:#e85a24;
+  --acc-bg:#fff1ec;
   --txt:#050505;
   --muted:#65676b;
   --red:#e41e3f;
@@ -33,7 +33,7 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(-
 .auth-tab.active{color:var(--acc);border-bottom-color:var(--acc);}
 .auth-form{display:flex;flex-direction:column;gap:12px;}
 .auth-input{width:100%;padding:13px 16px;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;color:var(--txt);font-family:inherit;font-size:.95rem;outline:none;transition:all .2s;}
-.auth-input:focus{background:var(--white);border-color:var(--acc);box-shadow:0 0 0 3px rgba(24,119,242,.15);}
+.auth-input:focus{background:var(--white);border-color:var(--acc);box-shadow:0 0 0 3px rgba(255,107,53,.15);}
 .auth-err{color:var(--red);font-size:.82rem;text-align:center;min-height:16px;}
 .auth-btn{width:100%;padding:13px;background:var(--acc);border:none;border-radius:10px;color:#fff;font-family:inherit;font-weight:700;font-size:1rem;cursor:pointer;transition:all .2s;letter-spacing:.2px;}
 .auth-btn:hover{background:var(--acc-dark);}
@@ -111,7 +111,7 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(-
 .section-title{font-weight:700;font-size:1.05rem;color:var(--txt);}
 .search-row{display:flex;gap:8px;}
 .s-input{flex:1;padding:10px 16px;background:var(--white);border:1.5px solid var(--border);border-radius:24px;color:var(--txt);font-family:inherit;font-size:.88rem;outline:none;transition:all .2s;}
-.s-input:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(24,119,242,.1);}
+.s-input:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(255,107,53,.1);}
 .s-btn{padding:10px 18px;background:var(--acc);border:none;border-radius:24px;color:#fff;font-weight:700;cursor:pointer;font-size:.86rem;font-family:inherit;transition:all .2s;}
 .s-btn:hover{background:var(--acc-dark);}
 .comm-card{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:14px;display:flex;align-items:center;gap:12px;cursor:pointer;box-shadow:var(--card-shadow);transition:all .2s;}
@@ -193,7 +193,7 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(-
 .modal-handle{width:40px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 18px;}
 .modal-title{font-weight:800;font-size:1.05rem;margin-bottom:16px;letter-spacing:-.2px;}
 .m-input{width:100%;padding:12px 16px;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;color:var(--txt);font-family:inherit;font-size:.9rem;outline:none;margin-bottom:10px;transition:all .2s;}
-.m-input:focus{background:var(--white);border-color:var(--acc);box-shadow:0 0 0 3px rgba(24,119,242,.1);}
+.m-input:focus{background:var(--white);border-color:var(--acc);box-shadow:0 0 0 3px rgba(255,107,53,.1);}
 select.m-input{appearance:none;}
 .m-btn{width:100%;padding:13px;border-radius:10px;background:var(--acc);border:none;color:#fff;font-family:inherit;font-weight:700;font-size:.92rem;cursor:pointer;transition:all .2s;margin-bottom:10px;}
 .m-btn:hover{background:var(--acc-dark);}
@@ -247,7 +247,7 @@ select.m-input{appearance:none;}
 <!-- APP -->
 <div id="app">
   <div class="topbar">
-    <div class="topbar-title" id="page-title">Rate</div>
+    <div class="topbar-logo">Quickpic</div>
     <div class="topbar-right">
       <button class="t-btn" onclick="openM('m-search')">
         <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
@@ -503,7 +503,7 @@ function goTo(page,title){
   document.querySelectorAll('.n-item').forEach(n=>n.classList.remove('active'));
   document.getElementById('page-'+page).classList.add('active');
   const ni=document.getElementById('n-'+page);if(ni)ni.classList.add('active');
-  document.getElementById('page-title').textContent=title||page;
+  // page title replaced by logo
   document.getElementById('strip').style.display=page==='feed'?'flex':'none';
   const pb=document.getElementById('post-to-comm-btn');
   if(pb) pb.style.display=(page==='feed'&&commFilter!=='all')?'inline-block':'none';
