@@ -528,18 +528,16 @@ window.addEventListener('DOMContentLoaded',()=>{
 });
 
 async function onIn(u){
-  // Handle new Google users - create profile if doesn't exist
+  curUser=u;
+  // Handle new Google/OAuth users - create profile if doesn't exist
   const {data:existing}=await sb.from('profiles').select('id').eq('id',u.id).maybeSingle();
   if(!existing){
-    // New Google user - use their email username or Google name
-    let username=u.user_metadata?.name?.replace(/\s+/g,'_').toLowerCase()||u.email?.split('@')[0]||'user_'+Date.now();
-    // Make username unique
+    let username=(u.user_metadata?.name||'').replace(/[^a-zA-Z0-9_]/g,'_').toLowerCase()||u.email?.split('@')[0]||'user'+Date.now();
+    if(username.length<3) username='user_'+username;
     const {data:taken}=await sb.from('profiles').select('id').eq('username',username).maybeSingle();
     if(taken) username=username+'_'+Math.floor(Math.random()*999);
     await sb.from('profiles').insert({id:u.id,username,avatar_url:u.user_metadata?.avatar_url||null});
   }
-  curUser=u;
-  curUser=u;
   // Load profile - retry up to 3 times in case of timing issue
   let p=null;
   for(let i=0;i<3;i++){
