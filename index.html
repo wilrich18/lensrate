@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>LensRate</title>
+<title>Quickpic</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -184,7 +184,7 @@ select.m-input{appearance:none;}
 
 <!-- AUTH -->
 <div id="auth">
-  <div class="auth-logo">LensRate</div>
+  <div class="auth-logo">Quickpic</div>
   <div class="auth-sub">Upload. Rate. Discover.</div>
   <div class="auth-tabs">
     <div class="auth-tab active" id="tab-in" onclick="setTab('login')">Sign In</div>
@@ -441,6 +441,7 @@ function goTo(page,title){
   const ni=document.getElementById('n-'+page);if(ni)ni.classList.add('active');
   document.getElementById('page-title').textContent=title||page;
   document.getElementById('strip').style.display=page==='feed'?'flex':'none';
+  if(page!=='feed'){const b=document.getElementById('post-to-comm-btn');if(b)b.remove();}
   curPage=page;
   if(page==='feed'){if(feedPhotos.length===0)loadFeed();else renderFeedCard();}
   if(page==='trend')loadTrend();
@@ -498,7 +499,29 @@ async function toggleJoin(id,btn){
   }
   renderComms();renderStrip();
 }
-function enterComm(id){commFilter=id;feedIdx=0;goTo('feed','Rate');renderStrip();}
+function enterComm(id){
+  commFilter=id;feedIdx=0;goTo('feed','Rate');renderStrip();
+  // Show post to community button in topbar
+  const comm=allComms.find(c=>c.id===id);
+  if(comm&&id!=='all'){
+    const existing=document.getElementById('post-to-comm-btn');
+    if(existing)existing.remove();
+    const btn=document.createElement('button');
+    btn.id='post-to-comm-btn';
+    btn.className='t-btn';
+    btn.style.cssText='width:auto;padding:0 12px;border-radius:20px;font-size:.78rem;font-weight:600;background:var(--acc);color:#fff;white-space:nowrap;';
+    btn.textContent='Post here';
+    btn.onclick=()=>{
+      updatePostComms();
+      document.getElementById('post-comm').value=id;
+      openM('m-post');
+    };
+    document.querySelector('.topbar-right').prepend(btn);
+  } else {
+    const existing=document.getElementById('post-to-comm-btn');
+    if(existing)existing.remove();
+  }
+}
 
 async function doCreateComm(){
   const errEl=document.getElementById('comm-err');
