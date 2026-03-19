@@ -346,6 +346,17 @@ select.m-input{appearance:none;}
   </div>
 </div>
 
+<div class="overlay" id="m-comm-browse" style="align-items:flex-end">
+  <div class="modal" style="max-height:92dvh;overflow-y:auto;padding-bottom:24px">
+    <div class="modal-handle"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div id="comm-browse-title" style="font-weight:800;font-size:1.05rem"></div>
+      <button id="comm-browse-post-btn" style="display:none;padding:7px 14px;border-radius:10px;background:var(--acc);border:none;color:#1a2a3a;font-family:inherit;font-weight:700;font-size:.8rem;cursor:pointer" onclick="postToCurrentComm()">Post here</button>
+    </div>
+    <div id="comm-browse-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px"></div>
+  </div>
+</div>
+
 <div class="overlay" id="m-join-private">
   <div class="modal">
     <div class="modal-handle"></div>
@@ -439,7 +450,7 @@ select.m-input{appearance:none;}
 <script>
 const SURL='https://xdsgimpbslduhmgdywqi.supabase.co';
 const SKEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhkc2dpbXBic2xkdWhtZ2R5d3FpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4Nzg5MjcsImV4cCI6MjA4OTQ1NDkyN30.XxVLB5D8IScTmT6Nv9K64-VLaoh6BtILAfPRdvRuO-M';
-let sb,curUser,curProfile,feedPhotos=[],feedIdx=0,myRatings={},joined=new Set(),commFilter='all',allComms=[],selFile=null,curPage='feed',seenPhotos=new Set(),showRated=false;
+let sb,curUser,curProfile,feedPhotos=[],feedIdx=0,myRatings={},joined=new Set(),commFilter='all',allComms=[],selFile=null,curPage='feed',seenPhotos=new Set(),showRated=false,commBrowsePhotos=[];
 
 window.addEventListener('DOMContentLoaded',()=>{
   if(!window.supabase){document.getElementById('auth-err').textContent='Failed to load — please refresh';return;}
@@ -648,16 +659,45 @@ async function toggleJoin(id,btn){
   }
   renderComms();renderStrip();
 }
-function enterComm(id){
+async function enterComm(id){
   const comm=allComms.find(c=>c.id===id);
-  // Block non-members from entering private communities
-  if(comm?.is_private && !joined.has(id)){
+  if(comm?.is_private&&!joined.has(id)){
     toast('Join this community to see photos');
     return;
   }
-  commFilter=id;feedIdx=0;
+  // Show community browse grid
+  document.getElementById('comm-browse-title').textContent=comm?.name||'Community';
+  const postBtn=document.getElementById('comm-browse-post-btn');
+  postBtn.style.display=joined.has(id)?'block':'none';
+  document.getElementById('comm-browse-grid').innerHTML='<div class="spinner" style="grid-column:1/-1;margin:20px auto"></div>';
+  openM('m-comm-browse');
+  const {data:photos}=await sb.from('photos').select('id,image_url,avg_rating,rating_count,caption,community:communities(id,name),author:profiles!photos_user_id_fkey(id,username,avatar_url)').eq('community_id',id).order('created_at',{ascending:false});
+  const grid=document.getElementById('comm-browse-grid');
+  if(!photos?.length){
+    grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px 20px;color:var(--muted);font-size:.88rem">No photos yet in this community.</div>';
+    return;
+  }
+  // Store photos for feed navigation
+  commBrowsePhotos=photos;
+  grid.innerHTML=photos.map((p,i)=>`
+    <div style="aspect-ratio:1;background:var(--bg);position:relative;overflow:hidden;cursor:pointer" onclick="openCommPhoto(${i})">
+      <img src="${p.image_url}" style="width:100%;height:100%;object-fit:cover;transition:transform .2s" loading="lazy"/>
+      <div style="position:absolute;bottom:0;left:0;right:0;padding:4px 6px;background:linear-gradient(transparent,rgba(0,0,0,.55));color:#fff;font-size:.7rem;font-weight:700;text-align:right">${p.avg_rating&&p.rating_count>0?parseFloat(p.avg_rating).toFixed(1):'—'}</div>
+      ${myRatings[p.id]?`<div style="position:absolute;top:4px;left:4px;background:var(--acc);border-radius:4px;padding:1px 5px;font-size:.68rem;font-weight:700;color:#1a2a3a">${myRatings[p.id]}</div>`:''}
+    </div>`).join('');
+  // Store community id for post here button
+  commFilter=id;
+}
+
+function openCommPhoto(startIdx){
+  // Load the community photos into the feed and start from the clicked photo
+  closeM('m-comm-browse');
+  feedPhotos=commBrowsePhotos;
+  feedIdx=startIdx;
   renderStrip();
   goTo('feed','Rate');
+  const pb=document.getElementById('post-to-comm-btn');
+  if(pb) pb.style.display='inline-block';
 }
 
 function togglePrivateField(){
