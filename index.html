@@ -892,7 +892,7 @@ async function viewPhotoDetail(photoId){
   document.getElementById('photo-detail-content').innerHTML='<div class="spinner"></div>';
   openM('m-photo-detail');
   const [{data:photo},{data:comments}]=await Promise.all([
-    sb.from('photos').select('id,image_url,avg_rating,rating_count,community:communities(name),author:profiles!photos_user_id_fkey(id,username)').eq('id',photoId).single(),
+    sb.from('photos').select('id,image_url,avg_rating,rating_count,caption,community:communities(name),author:profiles!photos_user_id_fkey(id,username)').eq('id',photoId).single(),
     sb.from('comments').select('id,content,user_id,created_at,author:profiles!comments_user_id_fkey(id,username),replies(id,content,user_id,author:profiles!replies_user_id_fkey(id,username))').eq('photo_id',photoId).order('created_at')
   ]);
   if(!photo){document.getElementById('photo-detail-content').innerHTML='<div class="empty-state">Photo not found</div>';return;}
@@ -912,7 +912,8 @@ async function viewPhotoDetail(photoId){
         </div>
       </div>`;
   document.getElementById('photo-detail-content').innerHTML=`
-    <img src="${photo.image_url}" style="width:100%;border-radius:12px;aspect-ratio:4/3;object-fit:cover;display:block;margin-bottom:14px"/>
+    <img src="${photo.image_url}" style="width:100%;border-radius:12px;aspect-ratio:4/3;object-fit:cover;display:block;margin-bottom:${photo.caption?'10px':'14px'}"/>
+    ${photo.caption?`<div style="font-size:.9rem;line-height:1.5;color:var(--txt);margin-bottom:12px">${photo.caption}</div>`:''}
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <div style="font-weight:700;font-size:.92rem;cursor:pointer" onclick="closeM('m-photo-detail');viewUser('${photo.author?.id}')">${photo.author?.username||'?'}</div>
       <div style="font-size:.78rem;color:var(--muted)">${photo.community?.name||''}</div>
