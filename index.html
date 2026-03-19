@@ -133,7 +133,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 .p-content-wrap::-webkit-scrollbar{display:none;}
 .p-content{padding:14px;display:flex;flex-direction:column;gap:8px;}
 .photo-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:2px;}
-.photo-item{aspect-ratio:1;background:var(--bg);position:relative;overflow:hidden;}
+.photo-item{aspect-ratio:1;background:var(--bg);position:relative;overflow:hidden;cursor:pointer;}
 .photo-item img{width:100%;height:100%;object-fit:cover;}
 .photo-score{position:absolute;bottom:3px;right:3px;background:rgba(0,0,0,.6);color:#fff;font-size:.68rem;font-weight:600;padding:2px 5px;border-radius:4px;}
 .photo-del{position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;background:var(--red);border:none;color:#fff;font-size:.65rem;cursor:pointer;display:none;align-items:center;justify-content:center;}
@@ -204,6 +204,7 @@ select.m-input{appearance:none;}
   <div class="topbar">
     <div class="topbar-title" id="page-title">Rate</div>
     <div class="topbar-right">
+      <button id="post-to-comm-btn" onclick="postToCurrentComm()" style="display:none;padding:0 14px;height:34px;border-radius:20px;font-size:.78rem;font-weight:600;background:var(--acc);color:#fff;border:none;cursor:pointer;white-space:nowrap;font-family:inherit;">Post here</button>
       <button class="t-btn" onclick="openM('m-search')">
         <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
       </button>
@@ -451,19 +452,8 @@ function goTo(page,title){
   const ni=document.getElementById('n-'+page);if(ni)ni.classList.add('active');
   document.getElementById('page-title').textContent=title||page;
   document.getElementById('strip').style.display=page==='feed'?'flex':'none';
-  if(page!=='feed'){const b=document.getElementById('post-to-comm-btn');if(b)b.remove();}
-  if(page==='feed'&&commFilter!=='all'){
-    setTimeout(()=>{
-      const existing=document.getElementById('post-to-comm-btn');
-      if(existing)existing.remove();
-      const btn=document.createElement('button');
-      btn.id='post-to-comm-btn';
-      btn.style.cssText='padding:0 14px;height:34px;border-radius:20px;font-size:.78rem;font-weight:600;background:var(--acc);color:#fff;border:none;cursor:pointer;white-space:nowrap;font-family:inherit;';
-      btn.textContent='Post here';
-      btn.onclick=postToCurrentComm;
-      document.querySelector('.topbar-right').prepend(btn);
-    },10);
-  }
+  const pb=document.getElementById('post-to-comm-btn');
+  if(pb) pb.style.display=(page==='feed'&&commFilter!=='all')?'block':'none';
   curPage=page;
   if(page==='feed'){if(feedPhotos.length===0)loadFeed();else renderFeedCard();}
   if(page==='trend')loadTrend();
@@ -482,7 +472,12 @@ function postToCurrentComm(){
   openM('m-post');
   setTimeout(()=>{ document.getElementById('post-comm').value=commFilter; },50);
 }
-function filterComm(id){commFilter=id;feedIdx=0;seenPhotos=new Set();renderStrip();loadFeed();}
+function filterComm(id){
+  commFilter=id;feedIdx=0;seenPhotos=new Set();
+  renderStrip();loadFeed();
+  const pb=document.getElementById('post-to-comm-btn');
+  if(pb) pb.style.display=(id!=='all')?'block':'none';
+}
 
 // COMMUNITIES
 async function loadComms(){
