@@ -717,7 +717,7 @@ async function loadTrend(){
   const rc=['g','s','b','',''];
   el.innerHTML=`
     <div class="section-title">Top Rated</div>
-    <div class="t-grid">${(photos||[]).map(p=>`<div class="t-card"><div class="t-img"><img src="${p.image_url}" loading="lazy"/></div><div class="t-info"><div class="t-score">${parseFloat(p.avg_rating||0).toFixed(1)}</div><div class="t-user">${p.author?.username||'?'}</div></div></div>`).join('')}</div>
+    <div class="t-grid">${(photos||[]).map(p=>`<div class="t-card" onclick="viewPhotoDetail('${p.id}')" style="cursor:pointer"><div class="t-img"><img src="${p.image_url}" loading="lazy"/></div><div class="t-info"><div class="t-score">${parseFloat(p.avg_rating||0).toFixed(1)} avg</div><div class="t-user">${p.author?.username||'?'}</div></div></div>`).join('')}</div>
     <div class="section-title">Most Active Raters</div>
     <div style="display:flex;flex-direction:column;gap:8px">${lb.map(([uid,info],i)=>`<div class="lb-row"><div class="lb-rank ${rc[i]}">${i+1}</div><div class="ava" style="width:30px;height:30px;font-size:.72rem">${info.username?.[0]?.toUpperCase()||'?'}</div><div class="lb-name" onclick="viewUser('${uid}')">${info.username||'?'}</div><div class="lb-count">${info.count} ratings</div></div>`).join('')}</div>`;
 }
