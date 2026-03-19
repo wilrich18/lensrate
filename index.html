@@ -409,7 +409,7 @@ select.m-input{appearance:none;}
 <script>
 const SURL='https://xdsgimpbslduhmgdywqi.supabase.co';
 const SKEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhkc2dpbXBic2xkdWhtZ2R5d3FpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4Nzg5MjcsImV4cCI6MjA4OTQ1NDkyN30.XxVLB5D8IScTmT6Nv9K64-VLaoh6BtILAfPRdvRuO-M';
-let sb,curUser,curProfile,feedPhotos=[],feedIdx=0,myRatings={},joined=new Set(),commFilter='all',allComms=[],selFile=null,curPage='feed',seenPhotos=new Set();
+let sb,curUser,curProfile,feedPhotos=[],feedIdx=0,myRatings={},joined=new Set(),commFilter='all',allComms=[],selFile=null,curPage='feed',seenPhotos=new Set(),showRated=false;
 
 window.addEventListener('DOMContentLoaded',()=>{
   if(!window.supabase){document.getElementById('auth-err').textContent='Failed to load — please refresh';return;}
@@ -628,7 +628,7 @@ async function loadFeed(){
     return;
   }
   const {data}=await q;
-  feedPhotos=(data||[]).filter(p=>!seenPhotos.has(p.id)&&p.author?.id!==curUser?.id);renderFeedCard();
+  feedPhotos=(data||[]).filter(p=>!seenPhotos.has(p.id)&&p.author?.id!==curUser?.id&&(showRated||!myRatings[p.id]));renderFeedCard();
 }
 
 function renderFeedCard(){
@@ -638,7 +638,8 @@ function renderFeedCard(){
     return;
   }
   if(feedIdx>=feedPhotos.length){
-    el.innerHTML=`<div class="catchup"><div class="catchup-circle"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><h3>You're all caught up!</h3><p>You've seen all photos. Check back later.</p></div>`;
+    const ratedCount=Object.keys(myRatings).length;
+    el.innerHTML=`<div class="catchup"><div class="catchup-circle"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><h3>You're all caught up!</h3><p>No new photos to rate right now.</p>${ratedCount>0&&!showRated?`<button onclick="showRatedPhotos()" style="margin-top:8px;padding:9px 20px;border-radius:10px;background:var(--acc-bg);border:1.5px solid var(--acc);color:var(--acc);font-family:inherit;font-weight:700;font-size:.86rem;cursor:pointer">Show ${ratedCount} rated photos</button>`:''}</div>`;
     return;
   }
   const p=feedPhotos[feedIdx],mr=myRatings[p.id];
@@ -666,6 +667,12 @@ function renderFeedCard(){
   </div>`;
 }
 
+function showRatedPhotos(){
+  showRated=true;
+  feedIdx=0;
+  loadFeed();
+}
+
 async function doRate(pid,rating){
   myRatings[pid]=rating;
   document.querySelectorAll('.r-btn').forEach(b=>b.classList.toggle('sel',parseInt(b.textContent)===rating));
@@ -682,7 +689,7 @@ async function toggleComments(pid){
   cw.innerHTML='<div class="spinner" style="width:20px;height:20px;border-width:2px;margin:10px auto"></div>';
   const {data:cs}=await sb.from('comments').select(`id,content,user_id,author:profiles!comments_user_id_fkey(id,username),replies(id,content,user_id,author:profiles!replies_user_id_fkey(id,username))`).eq('photo_id',pid).order('created_at');
   const html=(cs||[]).map(c=>{
-    const own=c.user_id===curUser?.id;
+    const own=(c.user_id&&curUser?.id&&c.user_id===curUser.id)||(c.author?.id&&curUser?.id&&c.author.id===curUser.id);
     const reps=(c.replies||[]).map(r=>`<div class="comment-item" style="margin-left:12px;margin-top:4px"><div class="comment-author" onclick="viewUser('${r.author?.id}')">${r.author?.username||'?'}</div><div class="comment-text">${r.content}</div></div>`).join('');
     return `<div class="comment-item" id="ci-${c.id}"><div class="comment-author" onclick="viewUser('${c.author?.id}')">${c.author?.username||'?'}</div><div class="comment-text">${c.content}</div><div class="comment-actions"><span class="c-action" onclick="openReply('${c.id}')">Reply</span>${own?`<span class="c-action c-del" onclick="delComment('${c.id}')">Delete</span>`:''}</div>${reps}<div id="rb-${c.id}"></div></div>`;
   }).join('');
@@ -878,7 +885,7 @@ async function viewPhotoDetail(photoId){
   const isOwn=photo.author?.id===curUser?.id;
   const mr=myRatings[photoId];
   const commentsHTML=(comments||[]).map(c=>{
-    const own=c.user_id===curUser?.id;
+    const own=(c.user_id&&curUser?.id&&c.user_id===curUser.id)||(c.author?.id&&curUser?.id&&c.author.id===curUser.id);
     const reps=(c.replies||[]).map(r=>`<div class="comment-item" style="margin-left:12px;margin-top:4px"><div class="comment-author">${r.author?.username||'?'}</div><div class="comment-text">${r.content}</div></div>`).join('');
     return `<div class="comment-item"><div class="comment-author" onclick="closeM('m-photo-detail');viewUser('${c.author?.id}')">${c.author?.username||'?'}</div><div class="comment-text">${c.content}</div><div class="comment-actions"><span class="c-action" onclick="openDetailReply('${c.id}')">Reply</span>${own?`<span class="c-action c-del" onclick="delDetailComment('${c.id}','${photoId}')">Delete</span>`:''}</div>${reps}<div id="drb-${c.id}"></div></div>`;
   }).join('');
