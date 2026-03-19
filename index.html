@@ -453,10 +453,19 @@ function goTo(page,title){
 function renderStrip(){
   const s=document.getElementById('strip');
   const myC=allComms.filter(c=>joined.has(c.id));
-  s.innerHTML=`<div class="pill ${commFilter==='all'?'active':''}" onclick="filterComm('all')">All</div>`
+  let html=`<div class="pill ${commFilter==='all'?'active':''}" onclick="filterComm('all')">All</div>`
     +myC.map(c=>`<div class="pill ${commFilter===c.id?'active':''}" onclick="filterComm('${c.id}')">${c.name}</div>`).join('');
+  if(commFilter!=='all'){
+    html+=`<div class="pill" onclick="postToCurrentComm()" style="background:var(--acc);color:#fff;border-color:var(--acc);margin-left:4px">+ Post here</div>`;
+  }
+  s.innerHTML=html;
 }
-function filterComm(id){commFilter=id;feedIdx=0;renderStrip();loadFeed();}
+function postToCurrentComm(){
+  updatePostComms();
+  document.getElementById('post-comm').value=commFilter;
+  openM('m-post');
+}
+function filterComm(id){commFilter=id;feedIdx=0;seenPhotos=new Set();renderStrip();loadFeed();}
 
 // COMMUNITIES
 async function loadComms(){
@@ -500,27 +509,9 @@ async function toggleJoin(id,btn){
   renderComms();renderStrip();
 }
 function enterComm(id){
-  commFilter=id;feedIdx=0;goTo('feed','Rate');renderStrip();
-  // Show post to community button in topbar
-  const comm=allComms.find(c=>c.id===id);
-  if(comm&&id!=='all'){
-    const existing=document.getElementById('post-to-comm-btn');
-    if(existing)existing.remove();
-    const btn=document.createElement('button');
-    btn.id='post-to-comm-btn';
-    btn.className='t-btn';
-    btn.style.cssText='width:auto;padding:0 12px;border-radius:20px;font-size:.78rem;font-weight:600;background:var(--acc);color:#fff;white-space:nowrap;';
-    btn.textContent='Post here';
-    btn.onclick=()=>{
-      updatePostComms();
-      document.getElementById('post-comm').value=id;
-      openM('m-post');
-    };
-    document.querySelector('.topbar-right').prepend(btn);
-  } else {
-    const existing=document.getElementById('post-to-comm-btn');
-    if(existing)existing.remove();
-  }
+  commFilter=id;feedIdx=0;
+  renderStrip();
+  goTo('feed','Rate');
 }
 
 async function doCreateComm(){
@@ -568,7 +559,7 @@ async function loadFeed(){
     return;
   }
   const {data}=await q;
-  feedPhotos=(data||[]).filter(p=>!seenPhotos.has(p.id));renderFeedCard();
+  feedPhotos=(data||[]).filter(p=>!seenPhotos.has(p.id)&&p.author?.id!==curUser?.id);renderFeedCard();
 }
 
 function renderFeedCard(){
@@ -593,7 +584,7 @@ function renderFeedCard(){
       <span>${p.rating_count||0} ratings</span>
       ${mr?`<span class="rated-badge">You rated: ${mr}</span>`:''}
       ${isOwn?'<span style="color:var(--muted);font-size:.76rem">Your photo</span>':''}
-      <div class="avg-score">${p.avg_rating?parseFloat(p.avg_rating).toFixed(1):'—'}</div>
+      <div class="avg-score">${p.avg_rating&&p.rating_count>0?parseFloat(p.avg_rating).toFixed(1)+' avg':'No ratings yet'}</div>
     </div>
     ${isOwn
       ? `<div style="padding:8px 14px 14px;font-size:.82rem;color:var(--muted);text-align:center">You cannot rate your own photo</div>`
