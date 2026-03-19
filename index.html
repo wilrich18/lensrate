@@ -337,7 +337,9 @@ select.m-input{appearance:none;}
       <input type="file" id="file-in" accept="image/*" style="display:none" onchange="onFile(event)"/>
     </div>
     <div id="prev-wrap" style="display:none;margin:10px 0"><img id="prev-img" style="width:100%;border-radius:10px;max-height:200px;object-fit:cover"/></div>
-    <label class="lbl" style="margin-top:10px">Community</label>
+    <label class="lbl" style="margin-top:10px">Caption (optional)</label>
+    <input class="m-input" id="post-caption" placeholder="Write a caption..."/>
+    <label class="lbl">Community</label>
     <select class="m-input" id="post-comm"><option value="">Select a community...</option></select>
     <button class="m-btn" id="post-btn" onclick="doPost()">Post Photo</button>
     <button class="m-btn sec" onclick="closeM('m-post')">Cancel</button>
@@ -620,7 +622,7 @@ async function delComm(id){
 // FEED
 async function loadFeed(){
   document.getElementById('feed-inner').innerHTML='<div class="spinner"></div>';
-  let q=sb.from('photos').select(`id,image_url,avg_rating,rating_count,community:communities(id,name),author:profiles!photos_user_id_fkey(id,username,avatar_url)`).order('created_at',{ascending:false});
+  let q=sb.from('photos').select(`id,image_url,avg_rating,rating_count,caption,community:communities(id,name),author:profiles!photos_user_id_fkey(id,username,avatar_url)`).order('created_at',{ascending:false});
   if(commFilter!=='all')q=q.eq('community_id',commFilter);
   else if(joined.size>0)q=q.in('community_id',[...joined]);
   else{
@@ -650,6 +652,7 @@ function renderFeedCard(){
       <div><div class="card-user" onclick="viewUser('${p.author?.id}')">${p.author?.username||'Unknown'}</div><div class="card-comm-label">${p.community?.name||''}</div></div>
     </div>
     <img class="card-img" src="${p.image_url}" loading="lazy"/>
+    ${p.caption?`<div style="padding:8px 14px;font-size:.86rem;line-height:1.5;color:var(--txt)">${p.caption}</div>`:''}
     <div class="card-stats">
       <span>${p.rating_count||0} ratings</span>
       ${mr?`<span class="rated-badge">You rated: ${mr}</span>`:''}
@@ -690,7 +693,7 @@ async function toggleComments(pid){
   const {data:cs}=await sb.from('comments').select(`id,content,user_id,author:profiles!comments_user_id_fkey(id,username),replies(id,content,user_id,author:profiles!replies_user_id_fkey(id,username))`).eq('photo_id',pid).order('created_at');
   const html=(cs||[]).map(c=>{
     const own=(c.user_id&&curUser?.id&&c.user_id===curUser.id)||(c.author?.id&&curUser?.id&&c.author.id===curUser.id);
-    const reps=(c.replies||[]).map(r=>`<div class="comment-item" style="margin-left:12px;margin-top:4px"><div class="comment-author" onclick="viewUser('${r.author?.id}')">${r.author?.username||'?'}</div><div class="comment-text">${r.content}</div></div>`).join('');
+    const reps=(c.replies||[]).map(r=>{const rOwn=(r.user_id&&curUser?.id&&r.user_id===curUser.id)||(r.author?.id&&curUser?.id&&r.author.id===curUser.id);return `<div class="comment-item" style="margin-left:12px;margin-top:4px"><div style="display:flex;align-items:center;gap:4px"><div class="comment-author" onclick="viewUser('${r.author?.id}')">${r.author?.username||'?'}</div>${rOwn?`<button onclick="delReply('${r.id}')" style="background:none;border:none;cursor:pointer;color:var(--muted);padding:2px 4px;border-radius:4px;line-height:1"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>`:''}</div><div class="comment-text">${r.content}</div></div>`;}).join('');
     return `<div class="comment-item" id="ci-${c.id}"><div class="comment-author" onclick="viewUser('${c.author?.id}')">${c.author?.username||'?'}</div><div class="comment-text">${c.content}</div><div class="comment-actions"><span class="c-action" onclick="openReply('${c.id}')">Reply</span>${own?`<button onclick="delComment('${c.id}')" style="background:none;border:none;cursor:pointer;color:var(--muted);padding:2px 4px;margin-left:4px;border-radius:4px;line-height:1" title="Delete comment"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>`:''}</div>${reps}<div id="rb-${c.id}"></div></div>`;
   }).join('');
   cw.innerHTML=`<div class="comments-toggle" onclick="toggleComments('${pid}')">Hide comments</div>
@@ -711,6 +714,16 @@ function openReply(cid){
   if(b.innerHTML){b.innerHTML='';return;}
   b.innerHTML=`<div class="c-input-row" style="margin-top:6px"><input class="c-input" id="ri-${cid}" placeholder="Write a reply..."/><button class="c-post-btn" onclick="doReply('${cid}')">Post</button></div>`;
 }
+async function delReply(rid){
+  await sb.from('replies').delete().eq('id',rid);
+  toast('Reply deleted');
+  // Reload comments in whichever view is open
+  const photo=feedPhotos[feedIdx];
+  if(photo&&document.getElementById('cw-'+photo.id)?.querySelector('.comment-list')){
+    toggleComments(photo.id);setTimeout(()=>toggleComments(photo.id),60);
+  }
+}
+
 async function doReply(cid){
   const inp=document.getElementById('ri-'+cid),content=inp?.value?.trim();if(!content)return;
   await sb.from('replies').insert({comment_id:cid,user_id:curUser.id,content});
@@ -833,7 +846,8 @@ async function doPost(){
   const {error:ue}=await sb.storage.from('photos').upload(path,selFile);
   if(ue){toast('Upload failed: '+ue.message);btn.disabled=false;btn.textContent='Post Photo';return;}
   const {data:{publicUrl}}=sb.storage.from('photos').getPublicUrl(path);
-  await sb.from('photos').insert({user_id:curUser.id,community_id:commId,image_url:publicUrl});
+  const caption=document.getElementById('post-caption')?.value?.trim()||null;
+  await sb.from('photos').insert({user_id:curUser.id,community_id:commId,image_url:publicUrl,caption});
   selFile=null;btn.disabled=false;btn.textContent='Post Photo';
   closeM('m-post');toast('Photo posted!');
   if(curPage==='feed')loadFeed();
@@ -868,7 +882,7 @@ function openM(id){
 }
 function closeM(id){
   document.getElementById(id).classList.remove('open');
-  if(id==='m-post'){selFile=null;document.getElementById('prev-wrap').style.display='none';document.getElementById('prev-img').src='';document.getElementById('file-in').value='';}
+  if(id==='m-post'){selFile=null;document.getElementById('prev-wrap').style.display='none';document.getElementById('prev-img').src='';document.getElementById('file-in').value='';document.getElementById('post-caption').value='';}
   if(id==='m-new-comm')document.getElementById('nc-name').value='';
 }
 document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');}));
@@ -879,14 +893,14 @@ async function viewPhotoDetail(photoId){
   openM('m-photo-detail');
   const [{data:photo},{data:comments}]=await Promise.all([
     sb.from('photos').select('id,image_url,avg_rating,rating_count,community:communities(name),author:profiles!photos_user_id_fkey(id,username)').eq('id',photoId).single(),
-    sb.from('comments').select('id,content,user_id,created_at,author:profiles!comments_user_id_fkey(id,username),replies(id,content,author:profiles!replies_user_id_fkey(id,username))').eq('photo_id',photoId).order('created_at')
+    sb.from('comments').select('id,content,user_id,created_at,author:profiles!comments_user_id_fkey(id,username),replies(id,content,user_id,author:profiles!replies_user_id_fkey(id,username))').eq('photo_id',photoId).order('created_at')
   ]);
   if(!photo){document.getElementById('photo-detail-content').innerHTML='<div class="empty-state">Photo not found</div>';return;}
   const isOwn=photo.author?.id===curUser?.id;
   const mr=myRatings[photoId];
   const commentsHTML=(comments||[]).map(c=>{
     const own=(c.user_id&&curUser?.id&&c.user_id===curUser.id)||(c.author?.id&&curUser?.id&&c.author.id===curUser.id);
-    const reps=(c.replies||[]).map(r=>`<div class="comment-item" style="margin-left:12px;margin-top:4px"><div class="comment-author">${r.author?.username||'?'}</div><div class="comment-text">${r.content}</div></div>`).join('');
+    const reps=(c.replies||[]).map(r=>{const rOwn=(r.user_id&&curUser?.id&&r.user_id===curUser.id)||(r.author?.id&&curUser?.id&&r.author.id===curUser.id);return `<div class="comment-item" style="margin-left:12px;margin-top:4px"><div style="display:flex;align-items:center;gap:4px"><div class="comment-author" onclick="closeM('m-photo-detail');viewUser('${r.author?.id}')">${r.author?.username||'?'}</div>${rOwn?`<button onclick="delReply('${r.id}')" style="background:none;border:none;cursor:pointer;color:var(--muted);padding:2px 4px;border-radius:4px;line-height:1"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>`:''}</div><div class="comment-text">${r.content}</div></div>`;}).join('');
     return `<div class="comment-item"><div class="comment-author" onclick="closeM('m-photo-detail');viewUser('${c.author?.id}')">${c.author?.username||'?'}</div><div class="comment-text">${c.content}</div><div class="comment-actions"><span class="c-action" onclick="openDetailReply('${c.id}')">Reply</span>${own?`<button onclick="delDetailComment('${c.id}','${photoId}')" style="background:none;border:none;cursor:pointer;color:var(--muted);padding:2px 4px;margin-left:4px;border-radius:4px;line-height:1" title="Delete comment"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>`:''}</div>${reps}<div id="drb-${c.id}"></div></div>`;
   }).join('');
   const avgDisplay=photo.avg_rating&&photo.rating_count>0?parseFloat(photo.avg_rating).toFixed(1):'—';
