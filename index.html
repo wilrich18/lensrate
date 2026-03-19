@@ -44,7 +44,7 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(-
 
 /* TOPBAR */
 .topbar{padding:0 16px;height:56px;display:flex;align-items:center;justify-content:space-between;background:var(--white);border-bottom:1px solid var(--border);flex-shrink:0;box-shadow:var(--card-shadow);}
-.topbar-logo{font-family:'Sora',sans-serif;font-size:1.5rem;font-weight:700;color:var(--acc);}
+.topbar-logo{font-family:'DM Sans',sans-serif;font-size:1.3rem;font-weight:800;color:var(--acc);letter-spacing:-.5px;}
 .topbar-right{display:flex;gap:8px;align-items:center;}
 .t-btn{width:36px;height:36px;border-radius:50%;background:var(--bg);border:none;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;}
 .t-btn:hover{background:var(--acc-bg);color:var(--acc);}
@@ -383,8 +383,8 @@ select.m-input{appearance:none;}
 
 <div class="toast" id="toast"></div>
 
-<div class="overlay" id="m-photo-detail" style="align-items:flex-end">
-  <div class="modal" style="max-height:92dvh">
+<div class="overlay" id="m-photo-detail" style="align-items:flex-end;z-index:200">
+  <div class="modal" style="max-height:92dvh;overflow-y:auto;padding-bottom:24px">
     <div class="modal-handle"></div>
     <div id="photo-detail-content"><div class="spinner"></div></div>
     <button class="m-btn sec" onclick="closeM('m-photo-detail')">Close</button>
@@ -793,7 +793,7 @@ async function viewUser(uid){
       <div style="font-weight:700;font-size:1.05rem">${p?.username||'?'}</div>
       <button class="follow-btn ${isF?'following':''}" id="fb-${uid}" onclick="toggleFollow('${uid}',this)">${isF?'Unfollow':'Follow'}</button>
     </div>
-    <div class="photo-grid">${(photos||[]).map(ph=>`<div class="photo-item" onclick="closeM('m-user');viewPhotoDetail('${ph.id}')" style="cursor:pointer"><img src="${ph.image_url}" loading="lazy"/><div class="photo-score">${parseFloat(ph.avg_rating||0).toFixed(1)}</div></div>`).join('')}</div>`;
+    <div class="photo-grid">${(photos||[]).map(ph=>`<div class="photo-item" onclick="viewPhotoDetail('${ph.id}')" style="cursor:pointer"><img src="${ph.image_url}" loading="lazy"/><div class="photo-score">${parseFloat(ph.avg_rating||0).toFixed(1)}</div></div>`).join('')}</div>`;
 }
 async function toggleFollow(uid,btn){
   const isF=btn.classList.contains('following');
