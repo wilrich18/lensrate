@@ -338,8 +338,9 @@ select.m-input{appearance:none;}
     <div class="modal-title">Post a Photo</div>
     <div class="upload-zone" onclick="document.getElementById('file-in').click()">
       <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-      <p>Tap to select a photo</p>
-      <input type="file" id="file-in" accept="image/*" style="display:none" onchange="onFile(event)"/>
+      <p>Tap to select a photo or video</p>
+      <p style="font-size:.76rem;color:var(--muted)">Videos max 30 seconds · 50MB</p>
+      <input type="file" id="file-in" accept="image/*,video/*" style="display:none" onchange="onFile(event)"/>
     </div>
     <div id="prev-wrap" style="display:none;margin:10px 0"><img id="prev-img" style="width:100%;border-radius:10px;max-height:200px;object-fit:cover"/></div>
     <label class="lbl" style="margin-top:10px">Caption (optional)</label>
@@ -672,7 +673,7 @@ async function enterComm(id){
   // Load photos
   const inner=document.getElementById('comm-browse-inner');
   inner.innerHTML='<div class="spinner"></div>';
-  const {data:photos}=await sb.from('photos').select('id,image_url,avg_rating,rating_count,caption,community:communities(id,name),author:profiles!photos_user_id_fkey(id,username,avatar_url)').eq('community_id',id).order('created_at',{ascending:false});
+  const {data:photos}=await sb.from('photos').select('id,image_url,video_url,media_type,avg_rating,rating_count,caption,community:communities(id,name),author:profiles!photos_user_id_fkey(id,username,avatar_url)').eq('community_id',id).order('created_at',{ascending:false});
   commBrowsePhotos=photos||[];
   if(!commBrowsePhotos.length){
     inner.innerHTML=`<div class="catchup"><div class="catchup-circle"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div><h3>No photos yet</h3><p>Be the first to post in ${comm?.name||'this community'}.</p></div>`;
@@ -680,7 +681,7 @@ async function enterComm(id){
   }
   inner.innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:2px">${commBrowsePhotos.map((p,i)=>`
     <div style="aspect-ratio:1;background:var(--bg);position:relative;overflow:hidden;cursor:pointer" onclick="openCommPhoto(${i})">
-      <img src="${p.image_url}" style="width:100%;height:100%;object-fit:cover" loading="lazy"/>
+      ${p.media_type==='video'&&p.video_url?`<video src="${p.video_url}" style="width:100%;height:100%;object-fit:cover" muted playsinline></video><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.2)"><svg width="28" height="28" viewBox="0 0 24 24" fill="white"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>`:`<img src="${p.image_url}" style="width:100%;height:100%;object-fit:cover" loading="lazy"/>`}
       <div style="position:absolute;bottom:0;left:0;right:0;padding:4px 6px;background:linear-gradient(transparent,rgba(0,0,0,.6));color:#fff;font-size:.7rem;font-weight:700;text-align:right">${p.avg_rating&&p.rating_count>0?parseFloat(p.avg_rating).toFixed(1):'—'}</div>
       ${myRatings[p.id]?`<div style="position:absolute;top:4px;left:4px;background:var(--acc);border-radius:4px;padding:2px 5px;font-size:.68rem;font-weight:700;color:#1a2a3a">${myRatings[p.id]}</div>`:''}
     </div>`).join('')}</div>`;
@@ -776,7 +777,7 @@ async function delComm(id){
 // FEED
 async function loadFeed(){
   document.getElementById('feed-inner').innerHTML='<div class="spinner"></div>';
-  let q=sb.from('photos').select(`id,image_url,avg_rating,rating_count,caption,community:communities(id,name),author:profiles!photos_user_id_fkey(id,username,avatar_url)`).order('created_at',{ascending:false});
+  let q=sb.from('photos').select(`id,image_url,video_url,media_type,avg_rating,rating_count,caption,community:communities(id,name),author:profiles!photos_user_id_fkey(id,username,avatar_url)`).order('created_at',{ascending:false});
   if(commFilter!=='all'){
     // Block non-members from seeing private community photos
     const comm=allComms.find(c=>c.id===commFilter);
@@ -815,7 +816,7 @@ function renderFeedCard(){
       <div class="ava" onclick="viewUser('${p.author?.id}')">${p.author?.username?.[0]?.toUpperCase()||'?'}</div>
       <div><div class="card-user" onclick="viewUser('${p.author?.id}')">${p.author?.username||'Unknown'}</div><div class="card-comm-label">${p.community?.name||''}</div></div>
     </div>
-    <img class="card-img" src="${p.image_url}" loading="lazy"/>
+    ${p.media_type==='video'&&p.video_url?`<video class="card-img" src="${p.video_url}" controls muted playsinline style="background:#000"></video>`:`<img class="card-img" src="${p.image_url}" loading="lazy"/>`}
     ${p.caption?`<div style="padding:8px 14px;font-size:.86rem;line-height:1.5;color:var(--txt)">${p.caption}</div>`:''}
     <div class="card-stats">
       <span>${p.rating_count||0} ratings</span>
@@ -937,7 +938,7 @@ async function showTab(tab){
     if(!data?.length){c.innerHTML='<div class="empty-state"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>No photos yet</div>';return;}
     c.innerHTML=`<div class="photo-grid">${data.map(p=>`
       <div class="photo-item">
-        <img src="${p.image_url}" loading="lazy" onclick="viewPhotoDetail('${p.id}')" style="cursor:pointer"/>
+        ${p.media_type==='video'&&p.video_url?`<video src="${p.video_url}" style="width:100%;height:100%;object-fit:cover;cursor:pointer" muted playsinline onclick="viewPhotoDetail('${p.id}')"></video><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none"><svg width="22" height="22" viewBox="0 0 24 24" fill="white"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>`:`<img src="${p.image_url}" loading="lazy" onclick="viewPhotoDetail('${p.id}')" style="cursor:pointer"/>`}
         <div class="photo-score" onclick="viewPhotoDetail('${p.id}')" style="cursor:pointer">${parseFloat(p.avg_rating||0).toFixed(1)}</div>
         <button class="photo-del" onclick="delMyPhoto('${p.id}')">x</button>
       </div>`).join('')}</div>`;
@@ -1012,9 +1013,34 @@ async function toggleFollow(uid,btn){
 // POST
 function onFile(e){
   selFile=e.target.files[0];if(!selFile)return;
-  const r=new FileReader();
-  r.onload=ev=>{document.getElementById('prev-img').src=ev.target.result;document.getElementById('prev-wrap').style.display='block';};
-  r.readAsDataURL(selFile);
+  const isVideo=selFile.type.startsWith('video/');
+  if(selFile.size>50*1024*1024){toast('File too large — max 50MB');selFile=null;e.target.value='';return;}
+  if(isVideo){
+    // Check video duration
+    const url=URL.createObjectURL(selFile);
+    const vid=document.createElement('video');
+    vid.preload='metadata';
+    vid.onloadedmetadata=()=>{
+      URL.revokeObjectURL(url);
+      if(vid.duration>30){
+        toast('Video must be 30 seconds or less');
+        selFile=null;e.target.value='';
+        document.getElementById('prev-wrap').style.display='none';
+        return;
+      }
+      // Show video preview
+      document.getElementById('prev-wrap').style.display='block';
+      document.getElementById('prev-wrap').innerHTML=`<video src="${URL.createObjectURL(selFile)}" style="width:100%;border-radius:10px;max-height:200px" controls muted playsinline></video>`;
+    };
+    vid.src=url;
+  } else {
+    const r=new FileReader();
+    r.onload=ev=>{
+      document.getElementById('prev-wrap').innerHTML=`<img id="prev-img" src="${ev.target.result}" style="width:100%;border-radius:10px;max-height:200px;object-fit:cover"/>`;
+      document.getElementById('prev-wrap').style.display='block';
+    };
+    r.readAsDataURL(selFile);
+  }
 }
 function updatePostComms(){
   const sel=document.getElementById('post-comm');
@@ -1024,15 +1050,15 @@ async function doPost(){
   const commId=document.getElementById('post-comm').value;
   if(!commId){toast('Select a community');return;}
   if(!selFile){toast('Select a photo');return;}
-  const btn=document.getElementById('post-btn');btn.disabled=true;btn.textContent='Uploading...';
+  const btn=document.getElementById('post-btn');btn.disabled=true;btn.textContent=isVideo?'Uploading video...':'Uploading photo...';
   const ext=selFile.name.split('.').pop(),path=`${curUser.id}/${Date.now()}.${ext}`;
-  const {error:ue}=await sb.storage.from('photos').upload(path,selFile);
-  if(ue){toast('Upload failed: '+ue.message);btn.disabled=false;btn.textContent='Post Photo';return;}
+  const {error:ue}=await sb.storage.from('photos').upload(path,selFile,{contentType:selFile.type});
+  if(ue){toast('Upload failed: '+ue.message);btn.disabled=false;btn.textContent='Post';return;}
   const {data:{publicUrl}}=sb.storage.from('photos').getPublicUrl(path);
   const caption=document.getElementById('post-caption')?.value?.trim()||null;
-  await sb.from('photos').insert({user_id:curUser.id,community_id:commId,image_url:publicUrl,caption});
-  selFile=null;btn.disabled=false;btn.textContent='Post Photo';
-  closeM('m-post');toast('Photo posted!');
+  await sb.from('photos').insert({user_id:curUser.id,community_id:commId,image_url:isVideo?null:publicUrl,video_url:isVideo?publicUrl:null,media_type:isVideo?'video':'photo',caption});
+  selFile=null;btn.disabled=false;btn.textContent='Post';
+  closeM('m-post');toast(isVideo?'Video posted!':'Photo posted!');
   if(curPage==='feed')loadFeed();
 }
 
@@ -1075,7 +1101,7 @@ async function viewPhotoDetail(photoId){
   document.getElementById('photo-detail-content').innerHTML='<div class="spinner"></div>';
   openM('m-photo-detail');
   const [{data:photo},{data:comments}]=await Promise.all([
-    sb.from('photos').select('id,image_url,avg_rating,rating_count,caption,community:communities(name),author:profiles!photos_user_id_fkey(id,username)').eq('id',photoId).single(),
+    sb.from('photos').select('id,image_url,video_url,media_type,avg_rating,rating_count,caption,community:communities(name),author:profiles!photos_user_id_fkey(id,username)').eq('id',photoId).single(),
     sb.from('comments').select('id,content,user_id,created_at,author:profiles!comments_user_id_fkey(id,username),replies(id,content,user_id,author:profiles!replies_user_id_fkey(id,username))').eq('photo_id',photoId).order('created_at')
   ]);
   if(!photo){document.getElementById('photo-detail-content').innerHTML='<div class="empty-state">Photo not found</div>';return;}
@@ -1095,7 +1121,7 @@ async function viewPhotoDetail(photoId){
         </div>
       </div>`;
   document.getElementById('photo-detail-content').innerHTML=`
-    <img src="${photo.image_url}" style="width:100%;border-radius:12px;aspect-ratio:4/3;object-fit:cover;display:block;margin-bottom:${photo.caption?'10px':'14px'}"/>
+    ${photo.media_type==='video'&&photo.video_url?`<video src="${photo.video_url}" style="width:100%;border-radius:12px;aspect-ratio:4/3;background:#000;display:block;margin-bottom:${photo.caption?'10px':'14px'}" controls playsinline></video>`:`<img src="${photo.image_url}" style="width:100%;border-radius:12px;aspect-ratio:4/3;object-fit:cover;display:block;margin-bottom:${photo.caption?'10px':'14px'}"/ >`}
     ${photo.caption?`<div style="font-size:.9rem;line-height:1.5;color:var(--txt);margin-bottom:12px">${photo.caption}</div>`:''}
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <div style="font-weight:700;font-size:.92rem;cursor:pointer" onclick="closeM('m-photo-detail');viewUser('${photo.author?.id}')">${photo.author?.username||'?'}</div>
