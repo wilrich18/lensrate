@@ -1049,7 +1049,8 @@ function updatePostComms(){
 async function doPost(){
   const commId=document.getElementById('post-comm').value;
   if(!commId){toast('Select a community');return;}
-  if(!selFile){toast('Select a photo');return;}
+  if(!selFile){toast('Select a photo or video');return;}
+  const isVideo=selFile.type.startsWith('video/');
   const btn=document.getElementById('post-btn');btn.disabled=true;btn.textContent=isVideo?'Uploading video...':'Uploading photo...';
   const ext=selFile.name.split('.').pop(),path=`${curUser.id}/${Date.now()}.${ext}`;
   const {error:ue}=await sb.storage.from('photos').upload(path,selFile,{contentType:selFile.type});
