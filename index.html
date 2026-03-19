@@ -587,7 +587,7 @@ function renderComms(){
   el.innerHTML=list.map(c=>{
     const isJ=joined.has(c.id),isMine=c.creator_id===curUser?.id;
     const lockIcon=c.is_private?`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:4px;flex-shrink:0"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`:'';
-    return `<div class="comm-card" onclick="enterComm('${c.id}')">
+    return `<div class="comm-card" onclick="${c.is_private&&!joined.has(c.id)?'':"enterComm('"+c.id+"')"}" style="cursor:${c.is_private&&!joined.has(c.id)?'default':'pointer'}">
       <div class="comm-abbr">${getAbbr(c.name)}</div>
       <div class="comm-info">
         <div class="comm-name" style="display:flex;align-items:center">${c.name}${lockIcon}</div>
@@ -649,6 +649,12 @@ async function toggleJoin(id,btn){
   renderComms();renderStrip();
 }
 function enterComm(id){
+  const comm=allComms.find(c=>c.id===id);
+  // Block non-members from entering private communities
+  if(comm?.is_private && !joined.has(id)){
+    toast('Join this community to see photos');
+    return;
+  }
   commFilter=id;feedIdx=0;
   renderStrip();
   goTo('feed','Rate');
@@ -703,8 +709,18 @@ async function delComm(id){
 async function loadFeed(){
   document.getElementById('feed-inner').innerHTML='<div class="spinner"></div>';
   let q=sb.from('photos').select(`id,image_url,avg_rating,rating_count,caption,community:communities(id,name),author:profiles!photos_user_id_fkey(id,username,avatar_url)`).order('created_at',{ascending:false});
-  if(commFilter!=='all')q=q.eq('community_id',commFilter);
-  else if(joined.size>0)q=q.in('community_id',[...joined]);
+  if(commFilter!=='all'){
+    // Block non-members from seeing private community photos
+    const comm=allComms.find(c=>c.id===commFilter);
+    if(comm?.is_private&&!joined.has(commFilter)){
+      document.getElementById('feed-inner').innerHTML=`<div class="catchup"><div class="catchup-circle"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div><h3>Private Community</h3><p>Join this community to see and rate photos.</p></div>`;
+      return;
+    }
+    q=q.eq('community_id',commFilter);
+  } else if(joined.size>0){
+    // Only show photos from joined communities (private ones included since user is a member)
+    q=q.in('community_id',[...joined]);
+  }
   else{
     document.getElementById('feed-inner').innerHTML=`<div class="catchup"><div class="catchup-circle"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div><h3>Join some groups first</h3><p>Go to the Groups tab and join communities to see photos here.</p></div>`;
     return;
