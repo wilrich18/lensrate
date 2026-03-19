@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Quickpic</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Sora:wght@700;800&display=swap');
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 :root{
   --bg:#f0f2f5;
@@ -25,7 +25,7 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(-
 
 /* AUTH */
 #auth{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100dvh;padding:32px 24px;background:var(--bg);}
-.auth-logo{font-family:'Playfair Display',serif;font-size:2.6rem;font-weight:700;color:var(--acc);margin-bottom:6px;letter-spacing:-1px;}
+.auth-logo{font-family:'Sora',sans-serif;font-size:2.6rem;font-weight:700;color:var(--acc);margin-bottom:6px;letter-spacing:-1px;}
 .auth-sub{color:var(--muted);font-size:.95rem;margin-bottom:28px;text-align:center;line-height:1.5;}
 .auth-card{background:var(--white);border-radius:16px;padding:24px;width:100%;max-width:380px;box-shadow:0 2px 12px rgba(0,0,0,.1);}
 .auth-tabs{display:flex;border-bottom:2px solid var(--border);margin-bottom:20px;}
@@ -44,7 +44,7 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(-
 
 /* TOPBAR */
 .topbar{padding:0 16px;height:56px;display:flex;align-items:center;justify-content:space-between;background:var(--white);border-bottom:1px solid var(--border);flex-shrink:0;box-shadow:var(--card-shadow);}
-.topbar-logo{font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:700;color:var(--acc);}
+.topbar-logo{font-family:'Sora',sans-serif;font-size:1.5rem;font-weight:700;color:var(--acc);}
 .topbar-right{display:flex;gap:8px;align-items:center;}
 .t-btn{width:36px;height:36px;border-radius:50%;background:var(--bg);border:none;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;}
 .t-btn:hover{background:var(--acc-bg);color:var(--acc);}
@@ -128,7 +128,7 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(-
 
 /* TRENDING */
 .t-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-.t-card{background:var(--white);border-radius:12px;overflow:hidden;box-shadow:var(--card-shadow);}
+.t-card{background:var(--white);border-radius:12px;overflow:hidden;box-shadow:var(--card-shadow);cursor:pointer;transition:box-shadow .2s;}.t-card:hover{box-shadow:var(--card-shadow-hover);}
 .t-img{aspect-ratio:1;background:var(--bg);overflow:hidden;}
 .t-img img{width:100%;height:100%;object-fit:cover;}
 .t-info{padding:8px 10px;}
@@ -793,7 +793,7 @@ async function viewUser(uid){
       <div style="font-weight:700;font-size:1.05rem">${p?.username||'?'}</div>
       <button class="follow-btn ${isF?'following':''}" id="fb-${uid}" onclick="toggleFollow('${uid}',this)">${isF?'Unfollow':'Follow'}</button>
     </div>
-    <div class="photo-grid">${(photos||[]).map(ph=>`<div class="photo-item"><img src="${ph.image_url}" loading="lazy"/><div class="photo-score">${parseFloat(ph.avg_rating||0).toFixed(1)}</div></div>`).join('')}</div>`;
+    <div class="photo-grid">${(photos||[]).map(ph=>`<div class="photo-item" onclick="closeM('m-user');viewPhotoDetail('${ph.id}')" style="cursor:pointer"><img src="${ph.image_url}" loading="lazy"/><div class="photo-score">${parseFloat(ph.avg_rating||0).toFixed(1)}</div></div>`).join('')}</div>`;
 }
 async function toggleFollow(uid,btn){
   const isF=btn.classList.contains('following');
@@ -871,39 +871,93 @@ async function viewPhotoDetail(photoId){
     sb.from('comments').select('id,content,user_id,created_at,author:profiles!comments_user_id_fkey(id,username),replies(id,content,author:profiles!replies_user_id_fkey(id,username))').eq('photo_id',photoId).order('created_at')
   ]);
   if(!photo){document.getElementById('photo-detail-content').innerHTML='<div class="empty-state">Photo not found</div>';return;}
+  const isOwn=photo.author?.id===curUser?.id;
+  const mr=myRatings[photoId];
   const commentsHTML=(comments||[]).map(c=>{
+    const own=c.user_id===curUser?.id;
     const reps=(c.replies||[]).map(r=>`<div class="comment-item" style="margin-left:12px;margin-top:4px"><div class="comment-author">${r.author?.username||'?'}</div><div class="comment-text">${r.content}</div></div>`).join('');
-    return `<div class="comment-item"><div class="comment-author" onclick="closeM('m-photo-detail');viewUser('${c.author?.id}')">${c.author?.username||'?'}</div><div class="comment-text">${c.content}</div>${reps}</div>`;
+    return `<div class="comment-item"><div class="comment-author" onclick="closeM('m-photo-detail');viewUser('${c.author?.id}')">${c.author?.username||'?'}</div><div class="comment-text">${c.content}</div><div class="comment-actions"><span class="c-action" onclick="openDetailReply('${c.id}')">Reply</span>${own?`<span class="c-action c-del" onclick="delDetailComment('${c.id}','${photoId}')">Delete</span>`:''}</div>${reps}<div id="drb-${c.id}"></div></div>`;
   }).join('');
-  const avgDisplay = photo.avg_rating && photo.rating_count > 0
-    ? parseFloat(photo.avg_rating).toFixed(1)
-    : '—';
+  const avgDisplay=photo.avg_rating&&photo.rating_count>0?parseFloat(photo.avg_rating).toFixed(1):'—';
+  const ratingSection=isOwn
+    ?`<div style="text-align:center;padding:8px;color:var(--muted);font-size:.84rem;margin-bottom:12px">This is your photo</div>`
+    :`<div style="margin-bottom:14px">
+        <div style="font-size:.78rem;color:var(--muted);font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px">${mr?'Your rating: '+mr+' — change it':'Rate this photo'}</div>
+        <div style="display:flex;gap:6px">${[1,2,3,4,5].map(n=>`<button id="dr-${photoId}-${n}" onclick="rateFromDetail('${photoId}',${n})" style="flex:1;padding:10px 0;border-radius:8px;border:1.5px solid ${mr===n?'var(--acc)':'var(--border)'};background:${mr===n?'var(--acc)':'var(--white)'};color:${mr===n?'#fff':'var(--txt)'};font-family:inherit;font-weight:700;font-size:.95rem;cursor:pointer">${n}</button>`).join('')}
+        </div>
+      </div>`;
   document.getElementById('photo-detail-content').innerHTML=`
     <img src="${photo.image_url}" style="width:100%;border-radius:12px;aspect-ratio:4/3;object-fit:cover;display:block;margin-bottom:14px"/>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-      <div style="font-weight:600;font-size:.9rem;cursor:pointer" onclick="closeM('m-photo-detail');viewUser('${photo.author?.id}')">${photo.author?.username||'?'}</div>
-      <div style="font-size:.8rem;color:var(--muted)">${photo.community?.name||''}</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-weight:700;font-size:.92rem;cursor:pointer" onclick="closeM('m-photo-detail');viewUser('${photo.author?.id}')">${photo.author?.username||'?'}</div>
+      <div style="font-size:.78rem;color:var(--muted)">${photo.community?.name||''}</div>
     </div>
-    <div style="display:flex;align-items:center;gap:16px;padding:12px 14px;background:var(--bg);border-radius:12px;margin-bottom:14px">
-      <div style="text-align:center;flex:1">
-        <div style="font-weight:700;font-size:1.5rem;color:var(--acc)">${avgDisplay}</div>
-        <div style="font-size:.72rem;color:var(--muted);margin-top:2px">avg rating</div>
+    <div style="display:flex;border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px">
+      <div style="text-align:center;flex:1;padding:12px 8px">
+        <div id="detail-avg-${photoId}" style="font-weight:800;font-size:1.4rem;color:var(--acc)">${avgDisplay}</div>
+        <div style="font-size:.68rem;color:var(--muted);margin-top:2px;text-transform:uppercase;letter-spacing:.3px">avg</div>
       </div>
-      <div style="width:1px;height:36px;background:var(--border)"></div>
-      <div style="text-align:center;flex:1">
-        <div style="font-weight:700;font-size:1.5rem;color:var(--txt)">${photo.rating_count||0}</div>
-        <div style="font-size:.72rem;color:var(--muted);margin-top:2px">ratings</div>
+      <div style="width:1px;background:var(--border)"></div>
+      <div style="text-align:center;flex:1;padding:12px 8px">
+        <div id="detail-count-${photoId}" style="font-weight:800;font-size:1.4rem">${photo.rating_count||0}</div>
+        <div style="font-size:.68rem;color:var(--muted);margin-top:2px;text-transform:uppercase;letter-spacing:.3px">ratings</div>
       </div>
-      <div style="width:1px;height:36px;background:var(--border)"></div>
-      <div style="text-align:center;flex:1">
-        <div style="font-weight:700;font-size:1.5rem;color:var(--txt)">${(comments||[]).length}</div>
-        <div style="font-size:.72rem;color:var(--muted);margin-top:2px">comments</div>
+      <div style="width:1px;background:var(--border)"></div>
+      <div style="text-align:center;flex:1;padding:12px 8px">
+        <div style="font-weight:800;font-size:1.4rem">${(comments||[]).length}</div>
+        <div style="font-size:.68rem;color:var(--muted);margin-top:2px;text-transform:uppercase;letter-spacing:.3px">comments</div>
       </div>
     </div>
-    <div style="font-weight:600;font-size:.88rem;margin-bottom:10px">Comments</div>
-    <div style="display:flex;flex-direction:column;gap:6px">
-      ${commentsHTML||'<div style="color:var(--muted);font-size:.84rem;padding:8px 0">No comments yet.</div>'}
+    ${ratingSection}
+    <div style="font-weight:700;font-size:.88rem;margin-bottom:10px">Comments</div>
+    <div style="display:flex;flex-direction:column;gap:6px">${commentsHTML||'<div style="color:var(--muted);font-size:.84rem;padding:8px 0">No comments yet.</div>'}</div>
+    <div class="c-input-row" style="margin-top:12px">
+      <input class="c-input" id="detail-ci-${photoId}" placeholder="Write a comment..."/>
+      <button class="c-post-btn" onclick="doDetailComment('${photoId}')">Post</button>
     </div>`;
+}
+
+async function rateFromDetail(photoId,rating){
+  myRatings[photoId]=rating;
+  [1,2,3,4,5].forEach(n=>{
+    const b=document.getElementById('dr-'+photoId+'-'+n);
+    if(!b)return;
+    if(n===rating){b.style.background='var(--acc)';b.style.borderColor='var(--acc)';b.style.color='#fff';}
+    else{b.style.background='var(--white)';b.style.borderColor='var(--border)';b.style.color='var(--txt)';}
+  });
+  await sb.from('ratings').upsert({user_id:curUser.id,photo_id:photoId,rating});
+  const {data}=await sb.from('ratings').select('rating').eq('photo_id',photoId);
+  if(data?.length){
+    const avg=data.reduce((s,r)=>s+r.rating,0)/data.length;
+    await sb.from('photos').update({avg_rating:avg,rating_count:data.length}).eq('id',photoId);
+    const avgEl=document.getElementById('detail-avg-'+photoId);
+    const countEl=document.getElementById('detail-count-'+photoId);
+    if(avgEl)avgEl.textContent=avg.toFixed(1);
+    if(countEl)countEl.textContent=data.length;
+  }
+  toast('Rated '+rating+'!');
+}
+
+async function doDetailComment(photoId){
+  const inp=document.getElementById('detail-ci-'+photoId);
+  const txt=inp?.value?.trim();if(!txt)return;
+  await sb.from('comments').insert({photo_id:photoId,user_id:curUser.id,content:txt});
+  inp.value='';toast('Comment posted');viewPhotoDetail(photoId);
+}
+async function delDetailComment(cid,photoId){
+  await sb.from('comments').delete().eq('id',cid);
+  toast('Deleted');viewPhotoDetail(photoId);
+}
+function openDetailReply(cid){
+  const b=document.getElementById('drb-'+cid);if(!b)return;
+  if(b.innerHTML){b.innerHTML='';return;}
+  b.innerHTML=`<div class="c-input-row" style="margin-top:6px"><input class="c-input" id="dri-${cid}" placeholder="Reply..."/><button class="c-post-btn" onclick="doDetailReply('${cid}')">Post</button></div>`;
+}
+async function doDetailReply(cid){
+  const inp=document.getElementById('dri-'+cid);
+  const txt=inp?.value?.trim();if(!txt)return;
+  await sb.from('replies').insert({comment_id:cid,user_id:curUser.id,content:txt});
+  inp.value='';toast('Reply posted');
 }
 
 // PHOTO VIEWER
