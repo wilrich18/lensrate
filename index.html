@@ -461,9 +461,8 @@ function renderStrip(){
   s.innerHTML=html;
 }
 function postToCurrentComm(){
-  updatePostComms();
-  document.getElementById('post-comm').value=commFilter;
   openM('m-post');
+  setTimeout(()=>{ document.getElementById('post-comm').value=commFilter; },50);
 }
 function filterComm(id){commFilter=id;feedIdx=0;seenPhotos=new Set();renderStrip();loadFeed();}
 
