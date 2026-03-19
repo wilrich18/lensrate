@@ -346,6 +346,19 @@ select.m-input{appearance:none;}
   </div>
 </div>
 
+<div class="overlay" id="m-join-private">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Private Community</div>
+    <p style="font-size:.86rem;color:var(--muted);margin-bottom:14px">This community is private. Enter the password to join.</p>
+    <div class="m-err" id="join-err"></div>
+    <label class="lbl">Password</label>
+    <input class="m-input" id="join-password" type="password" placeholder="Enter password..."/>
+    <button class="m-btn" onclick="doJoinPrivate()">Join Community</button>
+    <button class="m-btn sec" onclick="closeM('m-join-private')">Cancel</button>
+  </div>
+</div>
+
 <div class="overlay" id="m-new-comm">
   <div class="modal">
     <div class="modal-handle"></div>
@@ -353,6 +366,21 @@ select.m-input{appearance:none;}
     <div class="m-err" id="comm-err"></div>
     <label class="lbl">Community name</label>
     <input class="m-input" id="nc-name" placeholder="e.g. Street Photography"/>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;margin-bottom:2px">
+      <div>
+        <div style="font-weight:600;font-size:.9rem">Private community</div>
+        <div style="font-size:.76rem;color:var(--muted);margin-top:2px">Members need a password to join</div>
+      </div>
+      <label style="position:relative;display:inline-block;width:44px;height:24px;cursor:pointer">
+        <input type="checkbox" id="nc-private" onchange="togglePrivateField()" style="opacity:0;width:0;height:0"/>
+        <span id="nc-toggle" style="position:absolute;inset:0;background:var(--border);border-radius:12px;transition:.2s"></span>
+        <span id="nc-knob" style="position:absolute;left:3px;top:3px;width:18px;height:18px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.2)"></span>
+      </label>
+    </div>
+    <div id="nc-password-field" style="display:none">
+      <label class="lbl">Password</label>
+      <input class="m-input" id="nc-password" type="password" placeholder="Set a password for this community"/>
+    </div>
     <button class="m-btn" id="create-comm-btn" onclick="doCreateComm()">Create Community</button>
     <button class="m-btn sec" onclick="closeM('m-new-comm')">Cancel</button>
   </div>
@@ -558,15 +586,56 @@ function renderComms(){
   if(!list.length){el.innerHTML='<div class="empty-state"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>No communities found</div>';return;}
   el.innerHTML=list.map(c=>{
     const isJ=joined.has(c.id),isMine=c.creator_id===curUser?.id;
+    const lockIcon=c.is_private?`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:4px;flex-shrink:0"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`:'';
     return `<div class="comm-card" onclick="enterComm('${c.id}')">
       <div class="comm-abbr">${getAbbr(c.name)}</div>
-      <div class="comm-info"><div class="comm-name">${c.name}</div><div class="comm-count">${(c.member_count||0).toLocaleString()} members</div></div>
+      <div class="comm-info">
+        <div class="comm-name" style="display:flex;align-items:center">${c.name}${lockIcon}</div>
+        <div class="comm-count">${(c.member_count||0).toLocaleString()} members${c.is_private?' · Private':''}</div>
+      </div>
       <div style="display:flex;gap:6px;align-items:center">
         ${isMine?`<button class="del-btn" onclick="event.stopPropagation();delComm('${c.id}')">Delete</button>`:''}
-        <button class="join-btn ${isJ?'joined':''}" onclick="event.stopPropagation();toggleJoin('${c.id}',this)">${isJ?'Joined':'Join'}</button>
+        <button class="join-btn ${isJ?'joined':''}" onclick="event.stopPropagation();handleJoin('${c.id}',this,${!!c.is_private})">${isJ?'Joined':'Join'}</button>
       </div>
     </div>`;
   }).join('');
+}
+
+let pendingJoinId=null;
+async function handleJoin(id,btn,isPrivate){
+  if(joined.has(id)){
+    // Leave community
+    await sb.from('community_members').delete().eq('user_id',curUser.id).eq('community_id',id);
+    joined.delete(id);toast('Left community');
+    renderComms();renderStrip();
+    return;
+  }
+  if(isPrivate){
+    // Prompt for password
+    pendingJoinId=id;
+    document.getElementById('join-password').value='';
+    document.getElementById('join-err').textContent='';
+    openM('m-join-private');
+  } else {
+    await sb.from('community_members').insert({user_id:curUser.id,community_id:id});
+    joined.add(id);toast('Joined!');
+    renderComms();renderStrip();
+  }
+}
+
+async function doJoinPrivate(){
+  const password=document.getElementById('join-password').value.trim();
+  const errEl=document.getElementById('join-err');
+  if(!password){errEl.textContent='Enter the password';return;}
+  const comm=allComms.find(c=>c.id===pendingJoinId);
+  if(!comm){closeM('m-join-private');return;}
+  if(comm.password!==password){errEl.textContent='Incorrect password';return;}
+  await sb.from('community_members').insert({user_id:curUser.id,community_id:pendingJoinId});
+  joined.add(pendingJoinId);
+  closeM('m-join-private');
+  toast('Joined '+comm.name+'!');
+  renderComms();renderStrip();
+  pendingJoinId=null;
 }
 
 async function toggleJoin(id,btn){
@@ -585,28 +654,39 @@ function enterComm(id){
   goTo('feed','Rate');
 }
 
+function togglePrivateField(){
+  const isPrivate=document.getElementById('nc-private').checked;
+  document.getElementById('nc-password-field').style.display=isPrivate?'block':'none';
+  document.getElementById('nc-toggle').style.background=isPrivate?'var(--acc)':'var(--border)';
+  document.getElementById('nc-knob').style.transform=isPrivate?'translateX(20px)':'translateX(0)';
+}
+
 async function doCreateComm(){
   const errEl=document.getElementById('comm-err');
   const btn=document.getElementById('create-comm-btn');
   const name=document.getElementById('nc-name').value.trim();
+  const isPrivate=document.getElementById('nc-private').checked;
+  const password=document.getElementById('nc-password')?.value?.trim();
   errEl.textContent='';
   if(!name){errEl.textContent='Please enter a community name';return;}
+  if(isPrivate&&!password){errEl.textContent='Please set a password for private community';return;}
   if(!curUser){errEl.textContent='Not logged in';return;}
   btn.disabled=true;btn.textContent='Creating...';
   const {data,error}=await sb.from('communities')
-    .insert({name:name,creator_id:curUser.id,member_count:1})
+    .insert({name,creator_id:curUser.id,member_count:1,is_private:isPrivate,password:isPrivate?password:null})
     .select().single();
   if(error){
     errEl.textContent='Error: '+error.message;
     btn.disabled=false;btn.textContent='Create Community';
     return;
   }
-  const {error:me}=await sb.from('community_members')
-    .insert({user_id:curUser.id,community_id:data.id});
-  if(me)console.error('Member insert error:',me);
+  await sb.from('community_members').insert({user_id:curUser.id,community_id:data.id});
   joined.add(data.id);allComms.push(data);
   btn.disabled=false;btn.textContent='Create Community';
   document.getElementById('nc-name').value='';
+  document.getElementById('nc-private').checked=false;
+  document.getElementById('nc-password').value='';
+  togglePrivateField();
   closeM('m-new-comm');renderComms();renderStrip();
   toast(name+' created!');
 }
@@ -792,8 +872,27 @@ async function showTab(tab){
   } else if(tab==='created'){
     const mine=allComms.filter(c=>c.creator_id===curUser.id);
     if(!mine.length){c.innerHTML='<div class="empty-state"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>No communities created yet</div>';return;}
-    c.innerHTML=mine.map(cm=>`<div class="comm-card"><div class="comm-abbr">${getAbbr(cm.name)}</div><div class="comm-info"><div class="comm-name">${cm.name}</div><div class="comm-count">${(cm.member_count||0).toLocaleString()} members</div></div><button class="del-btn" onclick="delComm('${cm.id}')">Delete</button></div>`).join('');
+    c.innerHTML=mine.map(cm=>`<div class="comm-card"><div class="comm-abbr">${getAbbr(cm.name)}</div><div class="comm-info"><div class="comm-name">${cm.name}${cm.is_private?'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:4px"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>':''}</div><div class="comm-count">${cm.is_private?'Private':'Public'} · ${(cm.member_count||0).toLocaleString()} members</div></div><div style="display:flex;gap:6px"><button class="join-btn" onclick="toggleCommPrivacy('${cm.id}',${!!cm.is_private})">${cm.is_private?'Make Public':'Make Private'}</button><button class="del-btn" onclick="delComm('${cm.id}')">Delete</button></div></div>`).join('');
   }
+}
+
+async function toggleCommPrivacy(id,currentlyPrivate){
+  if(!currentlyPrivate){
+    // Making private - ask for password
+    const password=prompt('Set a password for this private community:');
+    if(!password)return;
+    await sb.from('communities').update({is_private:true,password}).eq('id',id);
+    const comm=allComms.find(c=>c.id===id);
+    if(comm){comm.is_private=true;comm.password=password;}
+    toast('Community is now private');
+  } else {
+    if(!confirm('Make this community public? The password will be removed.'))return;
+    await sb.from('communities').update({is_private:false,password:null}).eq('id',id);
+    const comm=allComms.find(c=>c.id===id);
+    if(comm){comm.is_private=false;comm.password=null;}
+    toast('Community is now public');
+  }
+  showTab('created');
 }
 
 async function delMyPhoto(id){if(!confirm('Delete this photo?'))return;await sb.from('photos').delete().eq('id',id);toast('Deleted');loadMe();}
