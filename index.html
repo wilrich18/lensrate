@@ -830,19 +830,34 @@ async function viewPhotoDetail(photoId){
     const reps=(c.replies||[]).map(r=>`<div class="comment-item" style="margin-left:12px;margin-top:4px"><div class="comment-author">${r.author?.username||'?'}</div><div class="comment-text">${r.content}</div></div>`).join('');
     return `<div class="comment-item"><div class="comment-author" onclick="closeM('m-photo-detail');viewUser('${c.author?.id}')">${c.author?.username||'?'}</div><div class="comment-text">${c.content}</div>${reps}</div>`;
   }).join('');
+  const avgDisplay = photo.avg_rating && photo.rating_count > 0
+    ? parseFloat(photo.avg_rating).toFixed(1)
+    : '—';
   document.getElementById('photo-detail-content').innerHTML=`
-    <img src="${photo.image_url}" style="width:100%;border-radius:12px;aspect-ratio:4/3;object-fit:cover;display:block;margin-bottom:12px"/>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+    <img src="${photo.image_url}" style="width:100%;border-radius:12px;aspect-ratio:4/3;object-fit:cover;display:block;margin-bottom:14px"/>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
       <div style="font-weight:600;font-size:.9rem;cursor:pointer" onclick="closeM('m-photo-detail');viewUser('${photo.author?.id}')">${photo.author?.username||'?'}</div>
       <div style="font-size:.8rem;color:var(--muted)">${photo.community?.name||''}</div>
     </div>
-    <div style="display:flex;gap:12px;margin-bottom:14px;font-size:.82rem;color:var(--muted)">
-      <span style="font-weight:700;color:var(--acc);font-size:1rem">${photo.avg_rating?parseFloat(photo.avg_rating).toFixed(1)+' avg':''}</span>
-      <span>${photo.rating_count||0} ratings</span>
+    <div style="display:flex;align-items:center;gap:16px;padding:12px 14px;background:var(--bg);border-radius:12px;margin-bottom:14px">
+      <div style="text-align:center;flex:1">
+        <div style="font-weight:700;font-size:1.5rem;color:var(--acc)">${avgDisplay}</div>
+        <div style="font-size:.72rem;color:var(--muted);margin-top:2px">avg rating</div>
+      </div>
+      <div style="width:1px;height:36px;background:var(--border)"></div>
+      <div style="text-align:center;flex:1">
+        <div style="font-weight:700;font-size:1.5rem;color:var(--txt)">${photo.rating_count||0}</div>
+        <div style="font-size:.72rem;color:var(--muted);margin-top:2px">ratings</div>
+      </div>
+      <div style="width:1px;height:36px;background:var(--border)"></div>
+      <div style="text-align:center;flex:1">
+        <div style="font-weight:700;font-size:1.5rem;color:var(--txt)">${(comments||[]).length}</div>
+        <div style="font-size:.72rem;color:var(--muted);margin-top:2px">comments</div>
+      </div>
     </div>
-    <div style="font-weight:600;font-size:.88rem;margin-bottom:8px">Comments (${(comments||[]).length})</div>
+    <div style="font-weight:600;font-size:.88rem;margin-bottom:10px">Comments</div>
     <div style="display:flex;flex-direction:column;gap:6px">
-      ${commentsHTML||'<div style="color:var(--muted);font-size:.84rem">No comments yet.</div>'}
+      ${commentsHTML||'<div style="color:var(--muted);font-size:.84rem;padding:8px 0">No comments yet.</div>'}
     </div>`;
 }
 
