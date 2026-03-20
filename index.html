@@ -816,7 +816,7 @@ function renderFeedCard(){
       <div class="ava" onclick="viewUser('${p.author?.id}')">${p.author?.username?.[0]?.toUpperCase()||'?'}</div>
       <div><div class="card-user" onclick="viewUser('${p.author?.id}')">${p.author?.username||'Unknown'}</div><div class="card-comm-label">${p.community?.name||''}</div></div>
     </div>
-    ${p.media_type==='video'&&p.video_url?`<video class="card-img" src="${p.video_url}" controls muted playsinline style="background:#000"></video>`:`<img class="card-img" src="${p.image_url}" loading="lazy"/>`}
+    ${p.video_url?`<video class="card-img" src="${p.video_url}" controls muted playsinline style="background:#000"></video>`:p.image_url?`<img class="card-img" src="${p.image_url}" loading="lazy"/>`:`<div class="card-img" style="background:var(--bg)"></div>`}
     ${p.caption?`<div style="padding:8px 14px;font-size:.86rem;line-height:1.5;color:var(--txt)">${p.caption}</div>`:''}
     <div class="card-stats">
       <span>${p.rating_count||0} ratings</span>
