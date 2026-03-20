@@ -1027,12 +1027,18 @@ function onFile(e){
         toast('Video must be 30 seconds or less');
         selFile=null;e.target.value='';
         prevWrap.style.display='none';
-        prevWrap.innerHTML='';
+        prevWrap.innerHTML='<img id="prev-img" style="width:100%;border-radius:10px;max-height:200px;object-fit:cover"/>';
         URL.revokeObjectURL(url);
         return;
       }
-      prevWrap.innerHTML='<video style="width:100%;border-radius:10px;max-height:200px" controls muted playsinline></video>';
-      prevWrap.querySelector('video').src=url;
+      const videoEl=document.createElement('video');
+      videoEl.src=url;
+      videoEl.style.cssText='width:100%;border-radius:10px;max-height:200px';
+      videoEl.controls=true;
+      videoEl.muted=true;
+      videoEl.setAttribute('playsinline','');
+      prevWrap.innerHTML='';
+      prevWrap.appendChild(videoEl);
       prevWrap.style.display='block';
     };
     vid.onerror=function(){toast('Could not read video file');selFile=null;};
@@ -1040,8 +1046,8 @@ function onFile(e){
   } else {
     const r=new FileReader();
     r.onload=function(ev){
-      prevWrap.innerHTML='<img style="width:100%;border-radius:10px;max-height:200px;object-fit:cover"/>';
-      prevWrap.querySelector('img').src=ev.target.result;
+      prevWrap.innerHTML='<img id="prev-img" style="width:100%;border-radius:10px;max-height:200px;object-fit:cover"/>';
+      document.getElementById('prev-img').src=ev.target.result;
       prevWrap.style.display='block';
     };
     r.readAsDataURL(file);
@@ -1118,7 +1124,7 @@ function openM(id){
 }
 function closeM(id){
   document.getElementById(id).classList.remove('open');
-  if(id==='m-post'){selFile=null;document.getElementById('prev-wrap').style.display='none';document.getElementById('prev-img').src='';document.getElementById('file-in').value='';document.getElementById('post-caption').value='';}
+  if(id==='m-post'){selFile=null;const pw=document.getElementById('prev-wrap');if(pw){pw.style.display='none';pw.innerHTML='<img id="prev-img" style="width:100%;border-radius:10px;max-height:200px;object-fit:cover"/>';}document.getElementById('file-in').value='';document.getElementById('post-caption').value='';}
   if(id==='m-new-comm')document.getElementById('nc-name').value='';
 }
 document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');}));
