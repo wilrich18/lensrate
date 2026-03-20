@@ -1047,20 +1047,41 @@ function updatePostComms(){
   sel.innerHTML='<option value="">Select a community...</option>'+allComms.filter(c=>joined.has(c.id)).map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
 }
 async function doPost(){
-  const commId=document.getElementById('post-comm').value;
-  if(!commId){toast('Select a community');return;}
-  if(!selFile){toast('Select a photo or video');return;}
-  const isVideo=selFile.type.startsWith('video/');
-  const btn=document.getElementById('post-btn');btn.disabled=true;btn.textContent=isVideo?'Uploading video...':'Uploading photo...';
-  const ext=selFile.name.split('.').pop(),path=`${curUser.id}/${Date.now()}.${ext}`;
-  const {error:ue}=await sb.storage.from('photos').upload(path,selFile,{contentType:selFile.type});
-  if(ue){toast('Upload failed: '+ue.message);btn.disabled=false;btn.textContent='Post';return;}
-  const {data:{publicUrl}}=sb.storage.from('photos').getPublicUrl(path);
-  const caption=document.getElementById('post-caption')?.value?.trim()||null;
-  await sb.from('photos').insert({user_id:curUser.id,community_id:commId,image_url:isVideo?null:publicUrl,video_url:isVideo?publicUrl:null,media_type:isVideo?'video':'photo',caption});
-  selFile=null;btn.disabled=false;btn.textContent='Post';
-  closeM('m-post');toast(isVideo?'Video posted!':'Photo posted!');
-  if(curPage==='feed')loadFeed();
+  try {
+    const commId=document.getElementById('post-comm').value;
+    if(!commId){toast('Select a community');return;}
+    if(!selFile){toast('Select a photo or video');return;}
+    const isVideo=selFile.type.startsWith('video/');
+    const btn=document.getElementById('post-btn');
+    btn.disabled=true;
+    btn.textContent=isVideo?'Uploading video...':'Uploading photo...';
+    const ext=selFile.name.split('.').pop();
+    const path=`${curUser.id}/${Date.now()}.${ext}`;
+    const {error:ue}=await sb.storage.from('photos').upload(path,selFile,{contentType:selFile.type});
+    if(ue){toast('Upload failed: '+ue.message);btn.disabled=false;btn.textContent='Post';return;}
+    const {data:{publicUrl}}=sb.storage.from('photos').getPublicUrl(path);
+    const caption=document.getElementById('post-caption')?.value?.trim()||null;
+    const {error:ie}=await sb.from('photos').insert({
+      user_id:curUser.id,
+      community_id:commId,
+      image_url:isVideo?null:publicUrl,
+      video_url:isVideo?publicUrl:null,
+      media_type:isVideo?'video':'photo',
+      caption
+    });
+    if(ie){toast('Post failed: '+ie.message);btn.disabled=false;btn.textContent='Post';return;}
+    selFile=null;
+    btn.disabled=false;
+    btn.textContent='Post';
+    closeM('m-post');
+    toast(isVideo?'Video posted!':'Photo posted!');
+    if(curPage==='feed')loadFeed();
+  } catch(e) {
+    toast('Error: '+e.message);
+    const btn=document.getElementById('post-btn');
+    if(btn){btn.disabled=false;btn.textContent='Post';}
+    console.error(e);
+  }
 }
 
 // EDIT PROFILE
