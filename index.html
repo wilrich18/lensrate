@@ -1012,34 +1012,39 @@ async function toggleFollow(uid,btn){
 
 // POST
 function onFile(e){
-  selFile=e.target.files[0];if(!selFile)return;
-  const isVideo=selFile.type.startsWith('video/');
-  if(selFile.size>50*1024*1024){toast('File too large — max 50MB');selFile=null;e.target.value='';return;}
+  const file=e.target.files[0];
+  if(!file)return;
+  selFile=file;
+  const isVideo=file.type.startsWith('video/');
+  if(file.size>50*1024*1024){toast('File too large — max 50MB');selFile=null;e.target.value='';return;}
+  const prevWrap=document.getElementById('prev-wrap');
   if(isVideo){
-    // Check video duration
-    const url=URL.createObjectURL(selFile);
+    const url=URL.createObjectURL(file);
     const vid=document.createElement('video');
     vid.preload='metadata';
-    vid.onloadedmetadata=()=>{
-      URL.revokeObjectURL(url);
+    vid.onloadedmetadata=function(){
       if(vid.duration>30){
         toast('Video must be 30 seconds or less');
         selFile=null;e.target.value='';
-        document.getElementById('prev-wrap').style.display='none';
+        prevWrap.style.display='none';
+        prevWrap.innerHTML='';
+        URL.revokeObjectURL(url);
         return;
       }
-      // Show video preview
-      document.getElementById('prev-wrap').style.display='block';
-      document.getElementById('prev-wrap').innerHTML=`<video src="${URL.createObjectURL(selFile)}" style="width:100%;border-radius:10px;max-height:200px" controls muted playsinline></video>`;
+      prevWrap.innerHTML='<video style="width:100%;border-radius:10px;max-height:200px" controls muted playsinline></video>';
+      prevWrap.querySelector('video').src=url;
+      prevWrap.style.display='block';
     };
+    vid.onerror=function(){toast('Could not read video file');selFile=null;};
     vid.src=url;
   } else {
     const r=new FileReader();
-    r.onload=ev=>{
-      document.getElementById('prev-wrap').innerHTML=`<img id="prev-img" src="${ev.target.result}" style="width:100%;border-radius:10px;max-height:200px;object-fit:cover"/>`;
-      document.getElementById('prev-wrap').style.display='block';
+    r.onload=function(ev){
+      prevWrap.innerHTML='<img style="width:100%;border-radius:10px;max-height:200px;object-fit:cover"/>';
+      prevWrap.querySelector('img').src=ev.target.result;
+      prevWrap.style.display='block';
     };
-    r.readAsDataURL(selFile);
+    r.readAsDataURL(file);
   }
 }
 function updatePostComms(){
