@@ -68,6 +68,13 @@ main{padding:16px;max-width:1500px;margin:0 auto}
 .badge.long{background:color-mix(in srgb,var(--up) 20%,transparent);color:var(--up)}
 .badge.short{background:color-mix(in srgb,var(--down) 20%,transparent);color:var(--down)}
 .badge.none{color:var(--muted)}
+.addrow{display:flex;gap:6px;margin-bottom:8px}
+.addrow input{text-transform:uppercase}
+.addrow input::placeholder{text-transform:none}
+.rm{border:none;background:none;color:var(--muted);padding:2px 6px;font-size:15px;line-height:1;opacity:0}
+.watch tr:hover .rm,.rm:focus{opacity:1}
+@media (hover:none){.rm{opacity:.6}}
+.rm:hover{color:var(--down)}
 .ruledots{display:inline-flex;gap:3px}
 .ruledots i{width:7px;height:7px;border-radius:2px;background:var(--line)}
 .ruledots i.ok{background:var(--up)}
@@ -160,6 +167,7 @@ table.list th{color:var(--muted);font-weight:500;font-size:12px}
     <div class="grid">
       <div class="card col-left">
         <h3>Watchlist <span id="scanAge" class="muted" style="text-transform:none;letter-spacing:0"></span></h3>
+        <form id="addForm" class="addrow"><input id="addSym" placeholder="Add symbol, e.g. GOOGL" autocomplete="off" spellcheck="false"><button class="accent" type="submit">Add</button></form>
         <table class="watch"><tbody id="watch"></tbody></table>
       </div>
       <div class="card">
@@ -354,9 +362,15 @@ async function scan() {
     return `<tr data-s="${esc(r.symbol)}" class="${r.symbol === selected ? 'sel' : ''}">
       <td><div class="sym">${esc(r.symbol)}</div><span class="ruledots" title="entry rules passing">${rl.map(x => `<i class="${x.ok ? 'ok' : ''}"></i>`).join('')}</span></td>
       <td class="mono">${r.price != null ? r.price.toFixed(2) : '—'}<div class="${cls(r.change_pct)}" style="font-size:12px">${pct(r.change_pct)}</div></td>
-      <td>${r.signal ? `<span class="badge ${r.signal}">${r.signal.toUpperCase()}</span>` : '<span class="badge none">—</span>'}</td></tr>`;
+      <td>${r.signal ? `<span class="badge ${r.signal}">${r.signal.toUpperCase()}</span>` : '<span class="badge none">—</span>'}</td>
+      <td style="width:1px"><button class="rm" data-rm="${esc(r.symbol)}" title="Remove ${esc(r.symbol)}" aria-label="Remove ${esc(r.symbol)}">×</button></td></tr>`;
   }).join('');
   document.querySelectorAll('#watch tr').forEach(tr => tr.onclick = () => { selected = tr.dataset.s; scan(); });
+  document.querySelectorAll('#watch .rm').forEach(b => b.onclick = e => {
+    e.stopPropagation();
+    if (!confirm(`Stop trading ${b.dataset.rm}?`)) return;
+    act(async () => { const j = await api('/api/watchlist', {action: 'remove', symbol: b.dataset.rm}); toast(j.message); scan(); });
+  });
   renderRules();
   loadChart();
 }
@@ -454,6 +468,12 @@ function drawChart() {
   g.fillStyle = '#fff'; g.fillText(last.toFixed(2), W - padR + 6, ly + 4);
 }
 window.addEventListener('resize', () => { drawChart(); if (lastBT) drawBT(lastBT); });
+
+$('#addForm').onsubmit = e => {
+  e.preventDefault();
+  const sym = $('#addSym').value.trim().toUpperCase(); if (!sym) return;
+  act(async () => { const j = await api('/api/watchlist', {action: 'add', symbol: sym}); $('#addSym').value = ''; selected = sym; toast(j.message); scan(); });
+};
 
 // ---------- controls
 $('#btnStart').onclick = () => {

@@ -103,6 +103,9 @@ class DemoBroker:
         n = self.c["lookback_bars"]
         return {s: self.data[s][: self.i + 1][-n:] for s in symbols}
 
+    def asset(self, s):
+        return {"symbol": s, "name": "demo stock", "tradable": True, "shortable": True}
+
     def open_bracket(self, s, side, qty, stop, target):
         px = self._px(s)
         self.cash += -qty * px if side == "long" else qty * px
@@ -383,6 +386,42 @@ class App:
         })
         return out
 
+    def watchlist(self, action, symbol):
+        sym = re.sub(r"[^A-Z0-9.]", "", str(symbol).upper())
+        if not sym or len(sym) > 10:
+            raise RuntimeError("Enter a ticker symbol like AAPL.")
+        wl = list(load_criteria()["watchlist"])
+        if action == "add":
+            if sym in wl:
+                raise RuntimeError(f"{sym} is already on the watchlist.")
+            info = None
+            if self.broker:
+                with self.lock:
+                    info = self.broker.asset(sym)
+                if not info:
+                    raise RuntimeError(f"{sym} isn't a symbol Alpaca knows.")
+                if not info["tradable"]:
+                    raise RuntimeError(f"{sym} ({info['name']}) isn't tradable on Alpaca.")
+            wl.append(sym)
+            msg = f"Added {sym}" + (f" ({info['name']})" if info and info.get("name") else "") + " to the watchlist."
+        elif action == "remove":
+            if sym not in wl:
+                raise RuntimeError(f"{sym} isn't on the watchlist.")
+            if len(wl) == 1:
+                raise RuntimeError("The watchlist needs at least one symbol.")
+            wl.remove(sym)
+            msg = f"Removed {sym} from the watchlist" + \
+                  (" (the bot will still manage its open position)." if sym in load_state(
+                      datetime.now(ET).date().isoformat())["positions"] else ".")
+        else:
+            raise RuntimeError("unknown action")
+        text = update_yaml_text(CRITERIA.read_text(), {"watchlist": wl})
+        load_criteria(text)
+        CRITERIA.write_text(text)
+        self.cache.clear()
+        self.say(msg)
+        return {"ok": True, "message": msg, "watchlist": wl}
+
     def scan(self):
         if not self.broker:
             raise RuntimeError("Not connected.")
@@ -555,6 +594,8 @@ class Handler(BaseHTTPRequestHandler):
             if u == "/api/backtest":
                 src = b.get("source", "synthetic")
                 return self._send(200, bot.backtest(src, quiet=True))
+            if u == "/api/watchlist":
+                return self._send(200, APP.watchlist(b.get("action"), b.get("symbol", "")))
             if u == "/api/demo_speed":
                 APP.demo_speed = max(0.2, min(10, float(b.get("seconds", 1.5))))
                 return self._send(200, {"ok": True})

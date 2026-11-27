@@ -342,6 +342,16 @@ class Alpaca:
         n = keep or self.c["lookback_bars"]
         return {s: sorted(bl, key=lambda b: b["t"])[-n:] for s, bl in out.items()}
 
+    def asset(self, symbol):
+        try:
+            j = self._req("GET", f"{self.base}/v2/assets/{symbol}")
+        except RuntimeError as err:
+            if "404" in str(err):
+                return None
+            raise
+        return {"symbol": j["symbol"], "name": j.get("name", ""), "tradable": j.get("tradable", False),
+                "shortable": j.get("shortable", False), "fractionable": j.get("fractionable", False)}
+
     def open_bracket(self, symbol, side, qty, stop, target):
         return self._req("POST", f"{self.base}/v2/orders", json={
             "symbol": symbol, "qty": str(qty), "side": "buy" if side == "long" else "sell",

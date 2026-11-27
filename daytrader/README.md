@@ -14,7 +14,7 @@ python app.py --open        # dashboard at http://localhost:8000
 ```
 - **Connection tab:** paste your Alpaca keys to connect to the real market (paper or live),
   or click **Demo market** to try a simulated market with no account.
-- **Dashboard:** live watchlist with ✓/✗ for every entry rule, a candlestick chart with EMA, VWAP,
+- **Dashboard:** type a ticker and press **Add** to trade it, or hover and click **×** to remove it. Symbols are checked with Alpaca first. The live watchlist with ✓/✗ for every entry rule, a candlestick chart with EMA, VWAP,
   your trades, and the stop/target lines. Also open positions, today's trades, and the bot log.
   The **Start**, **Stop**, and **Flatten all** buttons are in the header.
 - **Criteria:** every setting in `criteria.yaml` as a form, using the file's comments as help text.
