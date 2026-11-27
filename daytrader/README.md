@@ -7,6 +7,8 @@ It starts in **paper** mode, which uses fake money with real market data.
 > Educational tool, not financial advice. Most day traders lose money. Backtest first,
 > then paper trade for weeks before you even think about `mode: live`.
 
+**New here? Read [GETTING_STARTED.md](GETTING_STARTED.md). It covers double-click start, Alpaca keys, and troubleshooting.**
+
 ## The app (recommended)
 ```bash
 pip install -r requirements.txt

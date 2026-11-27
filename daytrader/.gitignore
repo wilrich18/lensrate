@@ -5,3 +5,4 @@ STOP
 __pycache__/
 demo_state.json
 demo_journal.jsonl
+.venv/
