@@ -1,0 +1,65 @@
+# =====================================================================
+#  DAY TRADER CRITERIA — edit anything here; the bot re-reads this file
+#  at the start of every cycle, so changes apply without a restart.
+#  Validate after editing:   python bot.py check
+# =====================================================================
+
+# sim   = offline, fake money, synthetic or historical data (no keys needed)
+# paper = Alpaca paper account (fake money, real market data)
+# live  = REAL MONEY. Also requires env var DAYTRADER_ALLOW_LIVE=yes
+mode: paper
+
+watchlist: [SPY, QQQ, AAPL, MSFT, NVDA, AMD, TSLA, META, AMZN]
+
+timeframe: 5Min          # 1Min | 5Min | 15Min
+lookback_bars: 120       # bars fetched per symbol each cycle
+poll_seconds: 60         # how often the loop runs in `run` mode
+data_feed: iex           # iex (free Alpaca plan) | sip (paid)
+
+schedule:                # all times US/Eastern
+  market_open: "09:30"
+  no_entries_first_minutes: 15   # skip the opening chop
+  no_new_entries_after: "15:30"
+  flatten_at: "15:50"            # close everything; never hold overnight
+
+risk:
+  risk_per_trade_pct: 0.5   # % of equity lost if the stop is hit (sizes the position)
+  max_position_value: 5000  # $ cap per position
+  max_open_positions: 3
+  max_trades_per_day: 10
+  daily_loss_limit: 300     # $ — stop trading + flatten for the day when hit
+  daily_profit_target: 0    # $ — stop opening trades once hit (0 = off)
+  stop_loss_pct: 1.0        # hard stop (sent to broker as bracket order)
+  take_profit_pct: 2.0      # hard target (sent to broker as bracket order)
+  trailing_stop_pct: 0.75   # bot-managed trailing stop from best price (0 = off)
+  max_hold_minutes: 120     # close after this long (0 = off)
+  cooldown_minutes: 30      # don't re-enter a symbol this soon after exiting it
+
+entry:
+  allow_long: true
+  allow_short: false
+  price_min: 5
+  price_max: 1500
+  min_avg_volume: 2000           # avg shares per bar over last 20 bars (IEX feed only sees ~2-3% of volume)
+  min_bar_volume_vs_avg: 1.2     # last bar volume >= X * average (0 = off)
+  ema_fast: 9
+  ema_slow: 21
+  require_fresh_cross_bars: 3    # fast EMA crossed slow within N bars (0 = trend only)
+  rsi_period: 14
+  rsi_long_min: 50
+  rsi_long_max: 70
+  rsi_short_min: 30
+  rsi_short_max: 50
+  require_vwap_confirm: true     # longs above VWAP, shorts below
+
+exit:
+  exit_on_ema_cross_back: true   # close when fast EMA crosses back against you
+  exit_long_rsi_above: 80        # take profits on overbought (0 = off)
+  exit_short_rsi_below: 20       # (0 = off)
+
+# Only used by `python bot.py backtest` / mode: sim
+sim:
+  starting_equity: 25000
+  days: 10
+  seed: 42
+  slippage_pct: 0.02    # per fill

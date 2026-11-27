@@ -1,0 +1,5 @@
+.env
+state.json
+journal.jsonl
+STOP
+__pycache__/
