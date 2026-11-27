@@ -7,7 +7,24 @@ It starts in **paper** mode, which uses fake money with real market data.
 > Educational tool, not financial advice. Most day traders lose money. Backtest first,
 > then paper trade for weeks before you even think about `mode: live`.
 
-## Setup (5 minutes)
+## The app (recommended)
+```bash
+pip install -r requirements.txt
+python app.py --open        # dashboard at http://localhost:8000
+```
+- **Connection tab:** paste your Alpaca keys to connect to the real market (paper or live),
+  or click **Demo market** to try a simulated market with no account.
+- **Dashboard:** live watchlist with ✓/✗ for every entry rule, a candlestick chart with EMA, VWAP,
+  your trades, and the stop/target lines. Also open positions, today's trades, and the bot log.
+  The **Start**, **Stop**, and **Flatten all** buttons are in the header.
+- **Criteria:** every setting in `criteria.yaml` as a form, using the file's comments as help text.
+  Changes are validated before they are saved. There is also a raw YAML editor.
+- **Backtest:** test the current criteria on synthetic data or real Alpaca history, with an equity curve and a trade list.
+
+The app only listens on your own computer (127.0.0.1) and rejects requests from other websites.
+Keys are written to `.env` only after Alpaca accepts them.
+
+## Command-line setup (5 minutes)
 1. Create a free account at alpaca.markets and generate **Paper Trading** API keys.
 2. `cp .env.example .env` and paste the keys into `.env`.
 3. `pip install -r requirements.txt`
@@ -52,6 +69,8 @@ run `python bot.py run` on your own machine or a small always-on server.
 Open positions stay protected by the broker's bracket orders even if the bot stops.
 
 ## Files
+- `app.py` + `static/index.html`: the dashboard app.
+- `bot.py`: the trading engine and the command-line interface.
 - `criteria.yaml`: your editable rules. The bot re-reads this file every cycle.
 - `state.json`: today's bot positions and counters (generated).
 - `journal.jsonl`: every entry, exit, and error, including the reasons (generated).

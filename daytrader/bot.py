@@ -50,8 +50,17 @@ def load_env():
                 os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
 
 
-def load_criteria():
-    c = yaml.safe_load(CRITERIA.read_text())
+class CriteriaError(ValueError):
+    pass
+
+
+def load_criteria(text=None):
+    try:
+        c = yaml.safe_load(CRITERIA.read_text() if text is None else text)
+    except yaml.YAMLError as err:
+        raise CriteriaError(f"criteria.yaml is not valid YAML: {err}")
+    if not isinstance(c, dict):
+        raise CriteriaError("criteria.yaml is empty or malformed")
     errors = []
     if c.get("mode") not in ("sim", "paper", "live"):
         errors.append("mode must be sim, paper or live")
@@ -77,7 +86,7 @@ def load_criteria():
         except Exception:
             errors.append(f"schedule.{k} must look like \"15:30\"")
     if errors:
-        raise SystemExit("criteria.yaml problems:\n  - " + "\n  - ".join(errors))
+        raise CriteriaError("criteria.yaml problems:\n  - " + "\n  - ".join(errors))
     c["watchlist"] = [s.upper() for s in c["watchlist"]]
     return c
 
@@ -246,6 +255,8 @@ class Strategy:
 
 # ----------------------------------------------------------------- broker
 class Alpaca:
+    kind = "alpaca"
+
     def __init__(self, c):
         import requests
 
@@ -264,6 +275,7 @@ class Alpaca:
         else:
             self.base = "https://paper-api.alpaca.markets"
         self.data = "https://data.alpaca.markets"
+        self.mode = c["mode"]
         self.rq.headers.update({"APCA-API-KEY-ID": key, "APCA-API-SECRET-KEY": sec})
         self.c = c
 
@@ -367,8 +379,8 @@ def save_state(s):
     STATE.write_text(json.dumps(s, indent=2, default=str))
 
 
-def journal(event, **kw):
-    row = {"ts": datetime.now(timezone.utc).isoformat(), "event": event, **kw}
+def journal(event, at=None, **kw):
+    row = {"ts": (at or datetime.now(timezone.utc)).isoformat(), "event": event, **kw}
     with JOURNAL.open("a") as f:
         f.write(json.dumps(row, default=str) + "\n")
     print(f"  [{event}] " + ", ".join(f"{k}={v}" for k, v in kw.items()))
@@ -376,17 +388,22 @@ def journal(event, **kw):
 
 # ------------------------------------------------------------- live engine
 class Engine:
-    def __init__(self):
+    def __init__(self, broker=None):
         self.c = load_criteria()
-        if self.c["mode"] == "sim":
-            raise SystemExit("mode is sim: use `python bot.py backtest` (or set mode: paper to trade).")
-        self.b = Alpaca(self.c)
+        if broker is None:
+            if self.c["mode"] == "sim":
+                raise SystemExit("mode is sim: use `python bot.py backtest` (or set mode: paper to trade).")
+            broker = Alpaca(self.c)
+        self.b = broker
         self.st = Strategy(self.c)
+
+    def j(self, event, **kw):
+        journal(event, at=getattr(self, "now", None), **kw)
 
     def flatten(self, s, reason, halt=True):
         for sym in list(s["positions"]):
             self.b.close(sym)
-            journal("exit", symbol=sym, reason=reason)
+            self.j("exit", symbol=sym, reason=reason)
             s["closed"].append({"symbol": sym, "reason": reason})
             del s["positions"][sym]
         if halt:
@@ -396,10 +413,11 @@ class Engine:
         self.c = load_criteria()  # pick up edits live
         self.st = Strategy(self.c)
         is_open, now = self.b.clock()
+        self.now = now
         s = load_state(now.astimezone(ET).date().isoformat())
         sch, risk = self.c["schedule"], self.c["risk"]
         m = minutes_et(now)
-        print(f"== cycle {now.astimezone(ET):%Y-%m-%d %H:%M:%S} ET | mode={self.c['mode']} ==")
+        print(f"== cycle {now.astimezone(ET):%Y-%m-%d %H:%M:%S} ET | mode={'demo' if getattr(self.b, 'kind', '') == 'demo' else self.c['mode']} ==")
         try:
             if STOPFILE.exists():
                 self.flatten(s, "STOP file present")
@@ -427,7 +445,7 @@ class Engine:
             # positions closed by the broker's bracket stop/target
             for sym in list(s["positions"]):
                 if sym not in held:
-                    journal("exit", symbol=sym, reason="bracket stop/target filled at broker")
+                    self.j("exit", symbol=sym, reason="bracket stop/target filled at broker")
                     s["closed"].append({"symbol": sym, "reason": "bracket"})
                     s["cooldown"][sym] = now.isoformat()
                     del s["positions"][sym]
@@ -446,7 +464,7 @@ class Engine:
                 why = self.st.exit_reason(bl, pos, now)
                 if why:
                     self.b.close(sym)
-                    journal("exit", symbol=sym, side=pos["side"], price=round(p, 2), reason=why, upl=round(held[sym]["upl"], 2))
+                    self.j("exit", symbol=sym, side=pos["side"], price=round(p, 2), reason=why, upl=round(held[sym]["upl"], 2))
                     s["closed"].append({"symbol": sym, "reason": why, "upl": held[sym]["upl"]})
                     s["cooldown"][sym] = now.isoformat()
                     del s["positions"][sym]
@@ -491,7 +509,7 @@ class Engine:
                                        "order_id": order.get("id")}
                 s["trades_today"] += 1
                 acct["buying_power"] -= qty * price
-                journal("entry", symbol=sym, side=side, qty=qty, price=round(price, 2), stop=stop, target=tgt,
+                self.j("entry", symbol=sym, side=side, qty=qty, price=round(price, 2), stop=stop, target=tgt,
                         why="; ".join(f"{n} {d}".strip() for n, _, d in rules[side]))
             if not s["positions"]:
                 print("  no positions; no symbols met every entry rule")
@@ -552,7 +570,7 @@ def alpaca_history(c, days):
     return {s: [x for x in bl if 570 <= minutes_et(x["t"]) < 960] for s, bl in raw.items()}
 
 
-def backtest(source):
+def backtest(source, quiet=False):
     c = load_criteria()
     st, risk, sch, sim = Strategy(c), c["risk"], c["schedule"], c.get("sim", {})
     tf = TF_MIN[c["timeframe"]]
@@ -563,6 +581,7 @@ def backtest(source):
     timeline = sorted({b["t"] for bl in data.values() for b in bl})
     idx = {s: {b["t"]: i for i, b in enumerate(bl)} for s, bl in data.items()}
     positions, trades, cooldown = {}, [], {}
+    curve = [{"t": timeline[0].isoformat() if timeline else "", "equity": start_eq}]
     day, day_pnl, day_trades, halted = None, 0.0, 0, False
     peak, max_dd, daily = start_eq, 0.0, {}
 
@@ -575,6 +594,7 @@ def backtest(source):
         day_pnl += pnl
         cooldown[sym] = t
         trades.append({**p, "exit_price": px, "exit_time": t.isoformat(), "pnl": pnl, "reason": reason})
+        curve.append({"t": t.isoformat(), "equity": round(equity, 2)})
 
     for t in timeline:
         close_t = t + timedelta(minutes=tf)
@@ -635,18 +655,31 @@ def backtest(source):
 
     wins = [t for t in trades if t["pnl"] > 0]
     losses = [t for t in trades if t["pnl"] <= 0]
+    reasons = {}
+    for t in trades:
+        reasons[t["reason"].split(" (")[0]] = reasons.get(t["reason"].split(" (")[0], 0) + 1
+    result = {
+        "source": source, "days": len(daily), "timeframe": c["timeframe"], "start": start_eq,
+        "end": round(equity, 2), "return_pct": round((equity / start_eq - 1) * 100, 2),
+        "trades": len(trades), "win_rate": round(len(wins) / max(len(trades), 1) * 100, 1),
+        "avg_win": round(sum(t["pnl"] for t in wins) / max(len(wins), 1), 2),
+        "avg_loss": round(sum(t["pnl"] for t in losses) / max(len(losses), 1), 2),
+        "max_drawdown": round(max_dd, 2), "exit_reasons": reasons,
+        "daily": {k: round(v, 2) for k, v in daily.items()}, "curve": curve,
+        "trade_list": [{k: (round(v, 2) if isinstance(v, float) else v) for k, v in t.items()} for t in trades],
+    }
+    if quiet:
+        return result
     print(f"Backtest ({source} data, {len(daily)} days, {c['timeframe']} bars, watchlist {len(c['watchlist'])})")
     print(f"  start ${start_eq:,.2f} -> end ${equity:,.2f}  ({(equity / start_eq - 1) * 100:+.2f}%)")
     print(f"  trades {len(trades)} | win rate {len(wins) / max(len(trades), 1) * 100:.1f}% | "
           f"avg win ${sum(t['pnl'] for t in wins) / max(len(wins), 1):,.2f} | "
           f"avg loss ${sum(t['pnl'] for t in losses) / max(len(losses), 1):,.2f} | max drawdown ${max_dd:,.2f}")
-    reasons = {}
-    for t in trades:
-        reasons[t["reason"].split(" (")[0]] = reasons.get(t["reason"].split(" (")[0], 0) + 1
     print("  exit reasons: " + ", ".join(f"{k} {v}" for k, v in sorted(reasons.items(), key=lambda kv: -kv[1])))
     print("  daily P&L: " + "  ".join(f"{k[5:]} {v:+.0f}" for k, v in daily.items()))
     if source == "synthetic":
         print("  NOTE: synthetic random-walk data only proves the logic runs. Use --source alpaca for real history.")
+    return result
 
 
 # --------------------------------------------------------------- commands
@@ -700,6 +733,10 @@ def main():
     ap.add_argument("--source", choices=["synthetic", "alpaca"], default="synthetic", help="backtest data")
     a = ap.parse_args()
     load_env()
+    try:
+        load_criteria()
+    except CriteriaError as err:
+        raise SystemExit(str(err))
     if a.command == "check":
         cmd_check()
     elif a.command == "scan":
@@ -714,6 +751,7 @@ def main():
         cmd_flatten()
     elif a.command == "backtest":
         backtest(a.source)
+    return 0
 
 
 if __name__ == "__main__":
